@@ -13,9 +13,12 @@ struct ExploreView: View {
     @State private var navigateToEventDetail = false
     @State private var selectedDateIndex = 0
     @State private var selectedDistance = 10
+    @State private var showLocationSheet = false
+    @State private var locationText = "Surrey, British Columbia"
+    @State private var radius = 40
     
     let sports = ["All Sports", "Badminton", "Tennis", "Basketball", "Soccer", "Running"]
-    let distances = [1, 5, 10, 25, 50] // km
+    let distances = [1, 5, 10, 25, 40, 50] // km
     let dateLabels: [String] = {
         let calendar = Calendar.current
         let today = Date()
@@ -47,41 +50,30 @@ struct ExploreView: View {
                 
                 VStack(spacing: 0) {
                     // Header
-                    HStack {
-                        Button(action: {
-                            // Handle back
-                        }) {
-                            Image(systemName: "chevron.left")
-                                .font(.title2)
-                                .foregroundColor(.black)
-                        }
-                        
-                        Spacer()
-                        
+                    ZStack {
                         Text("Explore")
                             .font(.system(size: 18, weight: .bold, design: .default))
                             .foregroundColor(.black)
-                        
-                        Spacer()
-                        
-                        // Notification bell
-                        Button(action: {
-                            // Handle notifications
-                        }) {
-                            Image(systemName: "bell")
-                                .font(.title2)
-                                .foregroundColor(.black)
+                        HStack {
+                            Spacer()
+                            // Notification bell
+                            Button(action: {
+                                // Handle notifications
+                            }) {
+                                Image(systemName: "bell")
+                                    .font(.title2)
+                                    .foregroundColor(.black)
+                            }
+                            // Profile picture
+                            Circle()
+                                .fill(Color.blue)
+                                .frame(width: 32, height: 32)
+                                .overlay(
+                                    Text("BL")
+                                        .font(.system(size: 12, weight: .bold, design: .default))
+                                        .foregroundColor(.white)
+                                )
                         }
-                        
-                        // Profile picture
-                        Circle()
-                            .fill(Color.blue)
-                            .frame(width: 32, height: 32)
-                            .overlay(
-                                Text("BL")
-                                    .font(.system(size: 12, weight: .bold, design: .default))
-                                    .foregroundColor(.white)
-                            )
                     }
                     .padding(.horizontal, 20)
                     .padding(.top, 10)
@@ -109,48 +101,34 @@ struct ExploreView: View {
                         .background(Color.gray.opacity(0.1))
                         .cornerRadius(12)
                         
-                        // Location/Distance filter
-                        HStack(spacing: 12) {
-                            HStack(spacing: 4) {
+                        // Location/Distance filter (centered, full width, clickable)
+                        Button(action: { showLocationSheet = true }) {
+                            HStack(spacing: 8) {
                                 Image(systemName: "mappin.and.ellipse")
                                     .foregroundColor(.gray)
-                                Text("Vancouver")
-                                    .font(.system(size: 15, weight: .medium))
-                                Text("• Within \(selectedDistance) km")
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Location")
+                                        .font(.system(size: 13, weight: .regular))
+                                        .foregroundColor(.gray)
+                                    Text(locationText)
+                                        .font(.system(size: 16, weight: .medium))
+                                        .foregroundColor(.black)
+                                }
+                                Spacer()
+                                Text("• Within \(radius) kilometers")
                                     .font(.system(size: 15, weight: .regular))
                                     .foregroundColor(.gray)
                             }
-                            .padding(.vertical, 8)
-                            .padding(.horizontal, 14)
+                            .padding(.vertical, 14)
+                            .padding(.horizontal, 16)
                             .background(Color.white)
                             .cornerRadius(12)
                             .overlay(
                                 RoundedRectangle(cornerRadius: 12)
                                     .stroke(Color.gray.opacity(0.2), lineWidth: 1)
                             )
-                            
-                            Spacer()
-                            
-                            Button(action: {
-                                // Open filter modal (to be implemented)
-                            }) {
-                                HStack(spacing: 6) {
-                                    Image(systemName: "slider.horizontal.3")
-                                        .font(.system(size: 16, weight: .medium))
-                                    Text("Filter")
-                                        .font(.system(size: 15, weight: .medium))
-                                }
-                                .padding(.vertical, 8)
-                                .padding(.horizontal, 14)
-                                .background(Color.white)
-                                .cornerRadius(12)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                                )
-                            }
                         }
-                        .padding(.horizontal, 2)
+                        .frame(maxWidth: .infinity)
                         
                         // Date selector
                         HStack(spacing: 12) {
@@ -217,6 +195,11 @@ struct ExploreView: View {
                         .padding(.horizontal, 20)
                         .padding(.top, 20)
                     }
+                }
+            }
+            .sheet(isPresented: $showLocationSheet) {
+                ChangeLocationView(locationText: $locationText, radius: $radius, distances: distances) {
+                    showLocationSheet = false
                 }
             }
             .navigationDestination(isPresented: $navigateToEventDetail) {
@@ -331,6 +314,139 @@ let sampleEvents = [
     Event(title: "Community Tennis", date: "Sep 25, 2025", location: "Stanley Park", playersCount: 3, maxPlayers: 4, skillLevel: "Advanced", status: "Open", statusColor: .green),
     Event(title: "Basketball Pickup", date: "Sep 26, 2025", location: "Local Gym", playersCount: 8, maxPlayers: 10, skillLevel: "All Levels", status: "Open", statusColor: .green)
 ]
+
+struct ChangeLocationView: View {
+    @Binding var locationText: String
+    @Binding var radius: Int
+    let distances: [Int]
+    let onApply: () -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var searchQuery = ""
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Spacer()
+                Text("Change location")
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundColor(.black)
+                Spacer()
+                Button(action: { dismiss() }) {
+                    Image(systemName: "xmark")
+                        .font(.title2)
+                        .foregroundColor(.gray)
+                }
+            }
+            .padding(.top, 16)
+            .padding(.bottom, 8)
+            .padding(.horizontal, 16)
+            Divider()
+            // Search field
+            HStack {
+                TextField("Search by city, neighborhood or ZIP code.", text: $searchQuery)
+                    .padding(.vertical, 10)
+                    .padding(.horizontal, 8)
+            }
+            .padding(.horizontal, 16)
+            // Location box
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Location")
+                    .font(.system(size: 13, weight: .regular))
+                    .foregroundColor(.gray)
+                HStack {
+                    Image(systemName: "mappin.and.ellipse")
+                        .foregroundColor(.gray)
+                    Text(locationText)
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(.black)
+                    Spacer()
+                }
+            }
+            .padding()
+            .background(Color.white)
+            .cornerRadius(12)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+            )
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+            // Radius box
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Radius")
+                    .font(.system(size: 13, weight: .regular))
+                    .foregroundColor(.gray)
+                Menu {
+                    ForEach(distances, id: \.self) { d in
+                        Button("\(d) kilometers") { radius = d }
+                    }
+                } label: {
+                    HStack {
+                        Text("\(radius) kilometers")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(.black)
+                        Spacer()
+                        Image(systemName: "chevron.down")
+                            .foregroundColor(.gray)
+                    }
+                    .padding(.vertical, 10)
+                    .padding(.horizontal, 8)
+                }
+            }
+            .padding()
+            .background(Color.white)
+            .cornerRadius(12)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+            )
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+            // Current location and info icons
+            HStack {
+                Spacer()
+                Button(action: {
+                    // TODO: Use current location
+                }) {
+                    Image(systemName: "location.fill")
+                        .font(.title3)
+                        .foregroundColor(.gray)
+                }
+                Spacer()
+                Button(action: {
+                    // TODO: Show info
+                }) {
+                    Image(systemName: "info.circle")
+                        .font(.title3)
+                        .foregroundColor(.gray)
+                }
+                Spacer()
+            }
+            .padding(.top, 24)
+            Spacer()
+            // Apply button
+            HStack {
+                Spacer()
+                Button(action: {
+                    onApply()
+                }) {
+                    Text("Apply")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 32)
+                        .padding(.vertical, 12)
+                        .background(Color.blue)
+                        .cornerRadius(12)
+                }
+                .padding(.bottom, 24)
+                .padding(.trailing, 16)
+            }
+        }
+        .background(Color(.systemGroupedBackground))
+        .ignoresSafeArea()
+    }
+}
 
 #Preview {
     ExploreView()

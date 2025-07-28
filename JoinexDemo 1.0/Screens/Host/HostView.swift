@@ -10,6 +10,8 @@ import SwiftUI
 struct HostView: View {
     @State private var navigateToCreateEvent = false
     @State private var navigateToEditEvent = false
+    @State private var showCancelAlert = false
+    @State private var eventToCancel: String? = nil
     
     var body: some View {
         NavigationStack {
@@ -23,19 +25,12 @@ struct HostView: View {
                         Text("Host")
                             .font(.system(size: 24, weight: .bold, design: .default))
                             .foregroundColor(.black)
-                        
                         Spacer()
-                        
-                        // Notification bell
-                        Button(action: {
-                            // Handle notifications
-                        }) {
+                        Button(action: {}) {
                             Image(systemName: "bell")
                                 .font(.title2)
                                 .foregroundColor(.black)
                         }
-                        
-                        // Profile picture
                         Circle()
                             .fill(Color.blue)
                             .frame(width: 40, height: 40)
@@ -50,13 +45,6 @@ struct HostView: View {
                     
                     ScrollView {
                         VStack(spacing: 20) {
-                            // Create Event Button
-                            AnimatedButton(title: "Create New Event") {
-                                navigateToCreateEvent = true
-                            }
-                            .padding(.horizontal, 20)
-                            .padding(.top, 20)
-                            
                             // Hosted Events Section
                             VStack(alignment: .leading, spacing: 16) {
                                 Text("Your Hosted Events")
@@ -74,10 +62,11 @@ struct HostView: View {
                                         status: "hosting",
                                         statusColor: .orange,
                                         playersCount: 45,
-                                        maxPlayers: 200
-                                    ) {
-                                        navigateToEditEvent = true
-                                    }
+                                        maxPlayers: 200,
+                                        canCancel: true,
+                                        onCancel: { eventToCancel = "Charity Run 5K"; showCancelAlert = true },
+                                        action: { navigateToEditEvent = true }
+                                    )
                                     
                                     HostedEventCard(
                                         title: "Community Basketball",
@@ -87,10 +76,11 @@ struct HostView: View {
                                         status: "attending",
                                         statusColor: .green,
                                         playersCount: 8,
-                                        maxPlayers: 10
-                                    ) {
-                                        navigateToEditEvent = true
-                                    }
+                                        maxPlayers: 10,
+                                        canCancel: false,
+                                        onCancel: {},
+                                        action: { navigateToEditEvent = true }
+                                    )
                                 }
                                 .padding(.horizontal, 20)
                             }
@@ -101,36 +91,35 @@ struct HostView: View {
                                     .font(.system(size: 20, weight: .bold, design: .default))
                                     .foregroundColor(.black)
                                     .padding(.horizontal, 20)
-                                
                                 HStack(spacing: 16) {
-                                    StatCard(
-                                        title: "Events Hosted",
-                                        value: "12",
-                                        icon: "calendar",
-                                        color: .blue
-                                    )
-                                    
-                                    StatCard(
-                                        title: "Total Players",
-                                        value: "156",
-                                        icon: "person.3",
-                                        color: .green
-                                    )
-                                    
-                                    StatCard(
-                                        title: "Avg. Rating",
-                                        value: "4.8",
-                                        icon: "star",
-                                        color: .orange
-                                    )
+                                    StatCard(title: "Events Hosted", value: "12", icon: "calendar", color: .blue)
+                                    StatCard(title: "Total Players", value: "156", icon: "person.3", color: .green)
+                                    StatCard(title: "Avg. Rating", value: "4.8", icon: "star", color: .orange)
                                 }
                                 .padding(.horizontal, 20)
                             }
-                            
-                            Spacer()
-                                .frame(height: 20)
+                            Spacer().frame(height: 80)
                         }
                     }
+                    // Create Event Button at the bottom
+                    VStack {
+                        Spacer()
+                        AnimatedButton(title: "Create New Event") {
+                            navigateToCreateEvent = true
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 24)
+                    }
+                }
+                .alert(isPresented: $showCancelAlert) {
+                    Alert(
+                        title: Text("Cancel Event"),
+                        message: Text("Are you sure you want to cancel \(eventToCancel ?? "this event")? This action cannot be undone."),
+                        primaryButton: .destructive(Text("Cancel Event")) {
+                            // TODO: Integrate cancel logic
+                        },
+                        secondaryButton: .cancel()
+                    )
                 }
             }
             .navigationDestination(isPresented: $navigateToCreateEvent) {
@@ -153,74 +142,82 @@ struct HostedEventCard: View {
     let statusColor: Color
     let playersCount: Int
     let maxPlayers: Int
+    let canCancel: Bool
+    let onCancel: () -> Void
     let action: () -> Void
     
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: 12) {
-                // Event image
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.gray.opacity(0.2))
-                    .frame(width: 80, height: 80)
-                    .overlay(
-                        Image(systemName: "sportscourt")
-                            .foregroundColor(.gray)
-                    )
-                
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(title)
-                        .font(.system(size: 16, weight: .bold, design: .default))
-                        .foregroundColor(.black)
-                        .multilineTextAlignment(.leading)
-                    
-                    HStack {
-                        Image(systemName: "calendar")
-                            .foregroundColor(.blue)
-                            .font(.caption)
-                        
-                        Text(date)
-                            .font(.system(size: 14, weight: .regular, design: .default))
-                            .foregroundColor(.gray)
+        VStack(spacing: 0) {
+            Button(action: action) {
+                HStack(spacing: 12) {
+                    // Event image
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.gray.opacity(0.2))
+                        .frame(width: 80, height: 80)
+                        .overlay(
+                            Image(systemName: "sportscourt")
+                                .foregroundColor(.gray)
+                        )
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(title)
+                            .font(.system(size: 16, weight: .bold, design: .default))
+                            .foregroundColor(.black)
+                            .multilineTextAlignment(.leading)
+                        HStack {
+                            Image(systemName: "calendar")
+                                .foregroundColor(.blue)
+                                .font(.caption)
+                            Text(date)
+                                .font(.system(size: 14, weight: .regular, design: .default))
+                                .foregroundColor(.gray)
+                        }
+                        HStack {
+                            Image(systemName: "location")
+                                .foregroundColor(.blue)
+                                .font(.caption)
+                            Text(location)
+                                .font(.system(size: 14, weight: .regular, design: .default))
+                                .foregroundColor(.gray)
+                        }
+                        HStack {
+                            Image(systemName: "person.2")
+                                .foregroundColor(.blue)
+                                .font(.caption)
+                            Text("\(playersCount) / \(maxPlayers) players")
+                                .font(.system(size: 14, weight: .regular, design: .default))
+                                .foregroundColor(.gray)
+                        }
                     }
-                    
-                    HStack {
-                        Image(systemName: "location")
-                            .foregroundColor(.blue)
-                            .font(.caption)
-                        
-                        Text(location)
-                            .font(.system(size: 14, weight: .regular, design: .default))
-                            .foregroundColor(.gray)
-                    }
-                    
-                    HStack {
-                        Image(systemName: "person.2")
-                            .foregroundColor(.blue)
-                            .font(.caption)
-                        
-                        Text("\(playersCount) / \(maxPlayers) players")
-                            .font(.system(size: 14, weight: .regular, design: .default))
-                            .foregroundColor(.gray)
-                    }
+                    Spacer()
+                    // Status badge
+                    Text(status)
+                        .font(.system(size: 12, weight: .medium, design: .default))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(statusColor)
+                        .cornerRadius(12)
                 }
-                
-                Spacer()
-                
-                // Status badge
-                Text(status)
-                    .font(.system(size: 12, weight: .medium, design: .default))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(statusColor)
-                    .cornerRadius(12)
+                .padding()
+                .background(Color.white)
+                .cornerRadius(12)
+                .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
             }
-            .padding()
-            .background(Color.white)
-            .cornerRadius(12)
-            .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
+            .buttonStyle(PlainButtonStyle())
+            if canCancel {
+                Button(action: onCancel) {
+                    Text("Cancel Event")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.red)
+                        .padding(.vertical, 8)
+                        .frame(maxWidth: .infinity)
+                }
+                .background(Color.red.opacity(0.05))
+                .cornerRadius(12)
+                .padding(.horizontal, 8)
+                .padding(.top, 4)
+            }
         }
-        .buttonStyle(PlainButtonStyle())
     }
 }
 
