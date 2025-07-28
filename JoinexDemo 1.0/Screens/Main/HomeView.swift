@@ -8,6 +8,7 @@
 import SwiftUI
 
 struct HomeView: View {
+    @Binding var selectedTab: Int
     @State private var navigateToEventDetail = false
     
     var body: some View {
@@ -42,14 +43,18 @@ struct HomeView: View {
                             }
                             
                             // Profile picture
-                            Circle()
-                                .fill(Color.blue)
-                                .frame(width: 40, height: 40)
-                                .overlay(
-                                    Text("BL")
-                                        .font(.system(size: 16, weight: .bold, design: .default))
-                                        .foregroundColor(.white)
-                                )
+                            Button(action: {
+                                selectedTab = 4
+                            }) {
+                                Circle()
+                                    .fill(Color.blue)
+                                    .frame(width: 40, height: 40)
+                                    .overlay(
+                                        Text("BL")
+                                            .font(.system(size: 16, weight: .bold, design: .default))
+                                            .foregroundColor(.white)
+                                    )
+                            }
                         }
                         .padding(.horizontal, 20)
                         .padding(.top, 10)
@@ -220,5 +225,5 @@ struct ActivityCard: View {
 }
 
 #Preview {
-    HomeView()
+    HomeView(selectedTab: .constant(0))
 } 

@@ -8,6 +8,8 @@
 import SwiftUI
 
 struct ChatRoomView: View {
+    let chat: Chat
+    let chatHistory: [Message]
     @Environment(\.dismiss) private var dismiss
     @State private var messageText = ""
     
@@ -27,44 +29,39 @@ struct ChatRoomView: View {
                                 .font(.title2)
                                 .foregroundColor(.black)
                         }
-                        
                         // Contact info
                         HStack(spacing: 8) {
                             Circle()
-                                .fill(Color.blue)
+                                .fill(chat.profileColor)
                                 .frame(width: 40, height: 40)
                                 .overlay(
-                                    Text("H")
-                                        .font(.system(size: 16, weight: .bold, design: .default))
-                                        .foregroundColor(.white)
+                                    chat.profileImage.isEmpty ?
+                                        AnyView(Text(chat.name.prefix(1))
+                                            .font(.system(size: 16, weight: .bold, design: .default))
+                                            .foregroundColor(.white))
+                                        :
+                                        AnyView(Image(systemName: chat.profileImage)
+                                            .foregroundColor(.white)
+                                            .font(.title3))
                                 )
-                            
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("Harrison Lin")
+                                Text(chat.name)
                                     .font(.system(size: 16, weight: .medium, design: .default))
                                     .foregroundColor(.black)
-                                
-                                Text("Active now")
+                                Text(chat.isActive ? "Active now" : "Offline")
                                     .font(.system(size: 12, weight: .regular, design: .default))
-                                    .foregroundColor(.green)
+                                    .foregroundColor(chat.isActive ? .green : .gray)
                             }
                         }
-                        
                         Spacer()
-                        
                         // Call buttons
                         HStack(spacing: 16) {
-                            Button(action: {
-                                // Handle call
-                            }) {
+                            Button(action: {}) {
                                 Image(systemName: "phone")
                                     .font(.title3)
                                     .foregroundColor(.blue)
                             }
-                            
-                            Button(action: {
-                                // Handle video call
-                            }) {
+                            Button(action: {}) {
                                 Image(systemName: "video")
                                     .font(.title3)
                                     .foregroundColor(.blue)
@@ -73,69 +70,45 @@ struct ChatRoomView: View {
                     }
                     .padding(.horizontal, 20)
                     .padding(.top, 10)
-                    
                     // Messages
                     ScrollView {
                         LazyVStack(spacing: 12) {
-                            // Sample messages
-                            MessageBubble(
-                                text: "See you in 30 min",
-                                isFromUser: false,
-                                time: "11:59"
-                            )
-                            
-                            MessageBubble(
-                                text: "Prepared some donuts for you. Bet you'll love them 😋😋",
-                                isFromUser: true,
-                                time: "12:01"
-                            )
-                            
-                            MessageBubble(
-                                text: "Thats a lot 🎉🎉🎉",
-                                isFromUser: false,
-                                time: "12:03"
-                            )
+                            ForEach(chatHistory) { msg in
+                                MessageBubble(
+                                    text: msg.text,
+                                    isFromUser: msg.isFromUser,
+                                    time: msg.time,
+                                    userInitial: msg.isFromUser ? "BL" : String(chat.name.prefix(1)),
+                                    userColor: msg.isFromUser ? Color.green : chat.profileColor
+                                )
+                            }
                         }
                         .padding(.horizontal, 20)
                         .padding(.top, 20)
                     }
-                    
-                    // Input bar
+                    // Input bar (unchanged)
                     HStack(spacing: 12) {
-                        Button(action: {
-                            // Handle location
-                        }) {
+                        Button(action: {}) {
                             Image(systemName: "location")
                                 .font(.title3)
                                 .foregroundColor(.gray)
                         }
-                        
-                        Button(action: {
-                            // Handle emoji
-                        }) {
+                        Button(action: {}) {
                             Image(systemName: "face.smiling")
                                 .font(.title3)
                                 .foregroundColor(.gray)
                         }
-                        
-                        Button(action: {
-                            // Handle image
-                        }) {
+                        Button(action: {}) {
                             Image(systemName: "photo")
                                 .font(.title3)
                                 .foregroundColor(.gray)
                         }
-                        
                         TextField("Aa", text: $messageText)
                             .textFieldStyle(PlainTextFieldStyle())
                             .padding()
                             .background(Color.gray.opacity(0.1))
                             .cornerRadius(20)
-                        
-                        Button(action: {
-                            // Handle send
-                            messageText = ""
-                        }) {
+                        Button(action: { messageText = "" }) {
                             Image(systemName: "paperplane")
                                 .font(.title3)
                                 .foregroundColor(.blue)
@@ -157,25 +130,34 @@ struct ChatRoomView: View {
     }
 }
 
+struct Message: Identifiable, Hashable {
+    let id = UUID()
+    let text: String
+    let isFromUser: Bool
+    let time: String
+    // For avatar
+    let userInitial: String?
+    let userColor: Color?
+}
+
 struct MessageBubble: View {
     let text: String
     let isFromUser: Bool
     let time: String
-    
+    let userInitial: String?
+    let userColor: Color?
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
             if !isFromUser {
-                // Other user's profile picture
                 Circle()
-                    .fill(Color.blue)
+                    .fill(userColor ?? .blue)
                     .frame(width: 32, height: 32)
                     .overlay(
-                        Text("H")
+                        Text(userInitial ?? "?")
                             .font(.system(size: 14, weight: .bold, design: .default))
                             .foregroundColor(.white)
                     )
             }
-            
             VStack(alignment: isFromUser ? .trailing : .leading, spacing: 4) {
                 Text(text)
                     .font(.system(size: 16, weight: .regular, design: .default))
@@ -184,19 +166,16 @@ struct MessageBubble: View {
                     .padding(.vertical, 12)
                     .background(isFromUser ? Color.blue : Color.gray.opacity(0.2))
                     .cornerRadius(20)
-                
                 Text(time)
                     .font(.system(size: 12, weight: .regular, design: .default))
                     .foregroundColor(.gray)
             }
-            
             if isFromUser {
-                // Current user's profile picture
                 Circle()
-                    .fill(Color.green)
+                    .fill(userColor ?? .green)
                     .frame(width: 32, height: 32)
                     .overlay(
-                        Text("BL")
+                        Text(userInitial ?? "BL")
                             .font(.system(size: 14, weight: .bold, design: .default))
                             .foregroundColor(.white)
                     )
@@ -207,5 +186,12 @@ struct MessageBubble: View {
 }
 
 #Preview {
-    ChatRoomView()
+    ChatRoomView(
+        chat: Chat(name: "Harrison Lin", lastMessage: "See you in 30 min", lastMessageTime: "12:03", profileColor: .blue, profileImage: "person.fill", isActive: true),
+        chatHistory: [
+            Message(text: "See you in 30 min", isFromUser: false, time: "11:59", userInitial: nil, userColor: nil),
+            Message(text: "Prepared some donuts for you. Bet you'll love them 😋😋", isFromUser: true, time: "12:01", userInitial: "BL", userColor: .green),
+            Message(text: "Thats a lot 🎉🎉🎉", isFromUser: false, time: "12:03", userInitial: nil, userColor: nil)
+        ]
+    )
 } 

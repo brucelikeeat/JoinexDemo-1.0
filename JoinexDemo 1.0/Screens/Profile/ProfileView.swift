@@ -1,4 +1,4 @@
-//
+ //
 //  ProfileView.swift
 //  JoinexDemo 1.0
 //
@@ -8,6 +8,7 @@
 import SwiftUI
 
 struct ProfileView: View {
+    @Binding var selectedTab: Int
     @State private var navigateToEditProfile = false
     
     var body: some View {
@@ -179,5 +180,5 @@ struct ProfileEventCard: View {
 }
 
 #Preview {
-    ProfileView()
+    ProfileView(selectedTab: .constant(0))
 }

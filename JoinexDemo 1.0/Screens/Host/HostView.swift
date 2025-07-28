@@ -8,6 +8,7 @@
 import SwiftUI
 
 struct HostView: View {
+    @Binding var selectedTab: Int
     @State private var navigateToCreateEvent = false
     @State private var navigateToEditEvent = false
     @State private var showCancelAlert = false
@@ -26,19 +27,18 @@ struct HostView: View {
                             .font(.system(size: 24, weight: .bold, design: .default))
                             .foregroundColor(.black)
                         Spacer()
-                        Button(action: {}) {
-                            Image(systemName: "bell")
-                                .font(.title2)
-                                .foregroundColor(.black)
+                        Button(action: {
+                            selectedTab = 4
+                        }) {
+                            Circle()
+                                .fill(Color.blue)
+                                .frame(width: 40, height: 40)
+                                .overlay(
+                                    Text("BL")
+                                        .font(.system(size: 16, weight: .bold, design: .default))
+                                        .foregroundColor(.white)
+                                )
                         }
-                        Circle()
-                            .fill(Color.blue)
-                            .frame(width: 40, height: 40)
-                            .overlay(
-                                Text("BL")
-                                    .font(.system(size: 16, weight: .bold, design: .default))
-                                    .foregroundColor(.white)
-                            )
                     }
                     .padding(.horizontal, 20)
                     .padding(.top, 10)
@@ -251,5 +251,5 @@ struct StatCard: View {
 }
 
 #Preview {
-    HostView()
+    HostView(selectedTab: .constant(0))
 } 

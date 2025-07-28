@@ -8,6 +8,7 @@
 import SwiftUI
 
 struct ExploreView: View {
+    @Binding var selectedTab: Int
     @State private var searchText = ""
     @State private var selectedSport = "All Sports"
     @State private var navigateToEventDetail = false
@@ -65,14 +66,18 @@ struct ExploreView: View {
                                     .foregroundColor(.black)
                             }
                             // Profile picture
-                            Circle()
-                                .fill(Color.blue)
-                                .frame(width: 32, height: 32)
-                                .overlay(
-                                    Text("BL")
-                                        .font(.system(size: 12, weight: .bold, design: .default))
-                                        .foregroundColor(.white)
-                                )
+                            Button(action: {
+                                selectedTab = 4
+                            }) {
+                                Circle()
+                                    .fill(Color.blue)
+                                    .frame(width: 32, height: 32)
+                                    .overlay(
+                                        Text("BL")
+                                            .font(.system(size: 12, weight: .bold, design: .default))
+                                            .foregroundColor(.white)
+                                    )
+                            }
                         }
                     }
                     .padding(.horizontal, 20)
@@ -449,5 +454,5 @@ struct ChangeLocationView: View {
 }
 
 #Preview {
-    ExploreView()
+    ExploreView(selectedTab: .constant(0))
 } 
