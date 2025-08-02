@@ -75,7 +75,7 @@ struct AnimatedButton: View {
     private var backgroundColor: Color {
         switch style {
         case .primary:
-            return isEnabled ? Color.blue : Color.gray
+            return isEnabled ? Color.royalBlue : Color.gray
         case .secondary:
             return Color.white
         case .success:

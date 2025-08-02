@@ -8,8 +8,10 @@
 import SwiftUI
 
 struct EventDetailView: View {
+    let event: Event
     @Environment(\.dismiss) private var dismiss
-    @State private var isJoined = true // Simulating already joined state
+    @EnvironmentObject var authManager: AuthManager
+    @State private var isJoined = false
     
     var body: some View {
         NavigationStack {
@@ -48,7 +50,7 @@ struct EventDetailView: View {
                             
                             // Profile picture
                             Circle()
-                                .fill(Color.blue)
+                                .fill(Color.royalBlue)
                                 .frame(width: 32, height: 32)
                                 .overlay(
                                     Text("BL")
@@ -64,7 +66,7 @@ struct EventDetailView: View {
                             // Venue
                             HStack {
                                 Image(systemName: "sportscourt")
-                                    .foregroundColor(.blue)
+                                    .foregroundColor(.royalBlue)
                                     .font(.title3)
                                 
                                 Text("UBC badminton centre")
@@ -75,7 +77,7 @@ struct EventDetailView: View {
                             // Location
                             HStack {
                                 Image(systemName: "location")
-                                    .foregroundColor(.blue)
+                                    .foregroundColor(.royalBlue)
                                     .font(.caption)
                                 
                                 Text("9151 Van Horne Way, Richmond, BC V6X 1W2, Canada")
@@ -101,7 +103,7 @@ struct EventDetailView: View {
                             // Date and Time
                             HStack {
                                 Image(systemName: "calendar")
-                                    .foregroundColor(.blue)
+                                    .foregroundColor(.royalBlue)
                                     .font(.caption)
                                 
                                 Text("Tuesday, July 23, 2024")
@@ -111,7 +113,7 @@ struct EventDetailView: View {
                             
                             HStack {
                                 Image(systemName: "clock")
-                                    .foregroundColor(.blue)
+                                    .foregroundColor(.royalBlue)
                                     .font(.caption)
                                 
                                 Text("9:00 AM - 11:00 AM")
@@ -122,7 +124,7 @@ struct EventDetailView: View {
                             // Required Skill
                             HStack {
                                 Image(systemName: "star")
-                                    .foregroundColor(.blue)
+                                    .foregroundColor(.royalBlue)
                                     .font(.caption)
                                 
                                 Text("Required Skill: Intermediate (Level 5-7)")
@@ -133,7 +135,7 @@ struct EventDetailView: View {
                             // Host
                             HStack {
                                 Image(systemName: "person")
-                                    .foregroundColor(.blue)
+                                    .foregroundColor(.royalBlue)
                                     .font(.caption)
                                 
                                 Text("Host:")
@@ -158,7 +160,6 @@ struct EventDetailView: View {
                         .padding()
                         .background(Color.white)
                         .cornerRadius(16)
-                        .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
                         .padding(.horizontal, 20)
                         .padding(.top, 20)
                         
@@ -166,7 +167,7 @@ struct EventDetailView: View {
                         VStack(alignment: .leading, spacing: 12) {
                             HStack {
                                 Image(systemName: "bubble.left")
-                                    .foregroundColor(.blue)
+                                    .foregroundColor(.royalBlue)
                                     .font(.title3)
                                 
                                 Text("Host Notes")
@@ -182,7 +183,6 @@ struct EventDetailView: View {
                         .padding()
                         .background(Color.white)
                         .cornerRadius(16)
-                        .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
                         .padding(.horizontal, 20)
                         .padding(.top, 16)
                         
@@ -190,7 +190,7 @@ struct EventDetailView: View {
                         VStack(alignment: .leading, spacing: 12) {
                             HStack {
                                 Image(systemName: "person.3")
-                                    .foregroundColor(.blue)
+                                    .foregroundColor(.royalBlue)
                                     .font(.title3)
                                 
                                 Text("Players Signed Up")
@@ -217,19 +217,18 @@ struct EventDetailView: View {
                                 
                                 // +1 indicator
                                 Circle()
-                                    .fill(Color.blue.opacity(0.1))
+                                    .fill(Color.royalBlue.opacity(0.1))
                                     .frame(width: 32, height: 32)
                                     .overlay(
                                         Text("+1")
                                             .font(.system(size: 10, weight: .bold, design: .default))
-                                            .foregroundColor(.blue)
+                                            .foregroundColor(.royalBlue)
                                     )
                             }
                         }
                         .padding()
                         .background(Color.white)
                         .cornerRadius(16)
-                        .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
                         .padding(.horizontal, 20)
                         .padding(.top, 16)
                         
@@ -254,5 +253,25 @@ struct EventDetailView: View {
 }
 
 #Preview {
-    EventDetailView()
+    EventDetailView(
+        event: Event(
+            id: "preview-event",
+            title: "UBC Badminton Centre",
+            description: "Join us for a fun badminton session!",
+            sportType: "Badminton",
+            location: "UBC Badminton Centre, Vancouver",
+            latitude: nil,
+            longitude: nil,
+            dateTime: Date(),
+            durationMinutes: 120,
+            maxPlayers: 8,
+            currentPlayers: 7,
+            skillLevel: 5,
+            hostId: "preview-host",
+            status: .active,
+            createdAt: Date(),
+            updatedAt: Date()
+        )
+    )
+    .environmentObject(AuthManager())
 } 

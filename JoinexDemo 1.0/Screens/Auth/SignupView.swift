@@ -8,14 +8,15 @@
 import SwiftUI
 
 struct SignupView: View {
+    @EnvironmentObject var authManager: AuthManager
     @Environment(\.dismiss) private var dismiss
-    @State private var username = "brucelikeeat"
-    @State private var email = "brucelikeeat.gmail.com"
+    @State private var username = ""
+    @State private var email = ""
     @State private var password = ""
     @State private var confirmPassword = ""
     @State private var agreedToTerms = false
     @State private var showTermsError = false
-    @State private var navigateToMain = false
+    @State private var showAlert = false
     
     var body: some View {
         NavigationStack {
@@ -53,13 +54,22 @@ struct SignupView: View {
                         Spacer()
                             .frame(height: 40)
                         
+                        // Logo
+                        Image("logo1")
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 80, height: 80)
+                        
+                        Spacer()
+                            .frame(height: 20)
+                        
                         // Main heading
-                        Text("Create Your Minton Account")
+                        Text("Create Your Joinex Account")
                             .font(.system(size: 24, weight: .bold, design: .default))
                             .foregroundColor(.black)
                             .multilineTextAlignment(.center)
                         
-                        Text("Join our community and start meeting other badminton players!")
+                        Text("Join our community and start meeting other sport players!")
                             .font(.system(size: 16, weight: .regular, design: .default))
                             .foregroundColor(.gray)
                             .multilineTextAlignment(.center)
@@ -73,7 +83,7 @@ struct SignupView: View {
                             // Profile picture placeholder
                             ZStack {
                                 Circle()
-                                    .fill(Color.blue)
+                                    .fill(Color.royalBlue)
                                     .frame(width: 100, height: 100)
                                 
                                 Text("BL")
@@ -154,7 +164,7 @@ struct SignupView: View {
                                     showTermsError = false
                                 }) {
                                     Image(systemName: agreedToTerms ? "checkmark.square.fill" : "square")
-                                        .foregroundColor(agreedToTerms ? .blue : .gray)
+                                        .foregroundColor(agreedToTerms ? .royalBlue : .gray)
                                         .font(.title3)
                                 }
                                 
@@ -163,13 +173,13 @@ struct SignupView: View {
                                     .foregroundColor(.black) +
                                 Text("Terms of Service")
                                     .font(.system(size: 14, weight: .medium, design: .default))
-                                    .foregroundColor(.blue) +
+                                    .foregroundColor(.royalBlue) +
                                 Text(" and ")
                                     .font(.system(size: 14, weight: .regular, design: .default))
                                     .foregroundColor(.black) +
                                 Text("Privacy Policy")
                                     .font(.system(size: 14, weight: .medium, design: .default))
-                                    .foregroundColor(.blue)
+                                    .foregroundColor(.royalBlue)
                             }
                             
                             if showTermsError {
@@ -184,14 +194,32 @@ struct SignupView: View {
                             .frame(height: 30)
                         
                         // Sign up button
-                        AnimatedButton(title: "Sign Up") {
+                        AnimatedButton(title: authManager.isLoading ? "Creating Account..." : "Sign Up") {
                             if !agreedToTerms {
                                 showTermsError = true
                                 return
                             }
-                            // Handle signup logic here
-                            navigateToMain = true
+                            
+                            if password != confirmPassword {
+                                authManager.errorMessage = "Passwords do not match"
+                                showAlert = true
+                                return
+                            }
+                            
+                            if password.count < 6 {
+                                authManager.errorMessage = "Password must be at least 6 characters"
+                                showAlert = true
+                                return
+                            }
+                            
+                            Task {
+                                let success = await authManager.signUp(email: email, password: password)
+                                if !success {
+                                    showAlert = true
+                                }
+                            }
                         }
+                        .disabled(authManager.isLoading)
                         .padding(.horizontal, 20)
                         
                         Spacer()
@@ -205,14 +233,18 @@ struct SignupView: View {
                     }
                 }
             }
-            .navigationDestination(isPresented: $navigateToMain) {
-                MainTabView()
-            }
             .navigationBarHidden(true)
+            .alert("Signup Error", isPresented: $showAlert) {
+                Button("OK") { }
+            } message: {
+                Text(authManager.errorMessage ?? "An error occurred during signup")
+            }
         }
     }
 }
 
 #Preview {
     SignupView()
+        .environmentObject(AuthManager())
 } 
+ 

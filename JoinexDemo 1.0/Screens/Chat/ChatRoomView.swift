@@ -59,12 +59,12 @@ struct ChatRoomView: View {
                             Button(action: {}) {
                                 Image(systemName: "phone")
                                     .font(.title3)
-                                    .foregroundColor(.blue)
+                                    .foregroundColor(.royalBlue)
                             }
                             Button(action: {}) {
                                 Image(systemName: "video")
                                     .font(.title3)
-                                    .foregroundColor(.blue)
+                                    .foregroundColor(.royalBlue)
                             }
                         }
                     }
@@ -104,6 +104,9 @@ struct ChatRoomView: View {
                                 .foregroundColor(.gray)
                         }
                         TextField("Aa", text: $messageText)
+                            .foregroundColor(.black)
+                            .accentColor(.royalBlue)
+                            .tint(.gray.opacity(0.9))
                             .textFieldStyle(PlainTextFieldStyle())
                             .padding()
                             .background(Color.gray.opacity(0.1))
@@ -111,7 +114,7 @@ struct ChatRoomView: View {
                         Button(action: { messageText = "" }) {
                             Image(systemName: "paperplane")
                                 .font(.title3)
-                                .foregroundColor(.blue)
+                                .foregroundColor(.royalBlue)
                         }
                     }
                     .padding(.horizontal, 20)
@@ -150,7 +153,7 @@ struct MessageBubble: View {
         HStack(alignment: .top, spacing: 8) {
             if !isFromUser {
                 Circle()
-                    .fill(userColor ?? .blue)
+                    .fill(userColor ?? .royalBlue)
                     .frame(width: 32, height: 32)
                     .overlay(
                         Text(userInitial ?? "?")
@@ -164,7 +167,7 @@ struct MessageBubble: View {
                     .foregroundColor(isFromUser ? .white : .black)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
-                    .background(isFromUser ? Color.blue : Color.gray.opacity(0.2))
+                                                .background(isFromUser ? Color.royalBlue : Color.gray.opacity(0.2))
                     .cornerRadius(20)
                 Text(time)
                     .font(.system(size: 12, weight: .regular, design: .default))

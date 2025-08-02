@@ -9,29 +9,37 @@ import SwiftUI
 
 struct HostView: View {
     @Binding var selectedTab: Int
+    @EnvironmentObject var authManager: AuthManager
     @State private var navigateToCreateEvent = false
     @State private var navigateToEditEvent = false
     @State private var showCancelAlert = false
-    @State private var eventToCancel: String? = nil
+    @State private var eventToCancel: Event? = nil
     
     var body: some View {
         NavigationStack {
             ZStack {
                 Color.white
-                    .ignoresSafeArea()
+                    .ignoresSafeArea(.all, edges: .top)
                 
                 VStack(spacing: 0) {
                     // Header
                     HStack {
+                        Image("logo1")
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 24, height: 24)
+                        
                         Text("Host")
                             .font(.system(size: 24, weight: .bold, design: .default))
                             .foregroundColor(.black)
+                        
                         Spacer()
+                        
                         Button(action: {
                             selectedTab = 4
                         }) {
                             Circle()
-                                .fill(Color.blue)
+                                .fill(Color.royalBlue)
                                 .frame(width: 40, height: 40)
                                 .overlay(
                                     Text("BL")
@@ -43,80 +51,86 @@ struct HostView: View {
                     .padding(.horizontal, 20)
                     .padding(.top, 10)
                     
-                    ScrollView {
-                        VStack(spacing: 20) {
-                            // Hosted Events Section
-                            VStack(alignment: .leading, spacing: 16) {
-                                Text("Your Hosted Events")
-                                    .font(.system(size: 20, weight: .bold, design: .default))
+                    // Main content area
+                    VStack(spacing: 0) {
+                        // Scrollable events section
+                        ScrollView {
+                            VStack(spacing: 20) {
+                                // Hosted Events Section
+                                VStack(alignment: .leading, spacing: 16) {
+                                    Text("Your Hosted Events")
+                                        .font(.system(size: 20, weight: .bold, design: .default))
+                                        .foregroundColor(.black)
+                                        .padding(.horizontal, 20)
+                                    
+                                    // Event cards
+                                    VStack(spacing: 12) {
+                                        if authManager.hostedEvents.isEmpty {
+                                            Text("No hosted events yet")
+                                                .font(.system(size: 16, weight: .medium, design: .default))
+                                                .foregroundColor(.gray)
+                                                .padding(.vertical, 40)
+                                        } else {
+                                            ForEach(authManager.hostedEvents) { event in
+                                                HostedEventCard(
+                                                    title: event.title,
+                                                    date: event.formattedDate,
+                                                    location: event.location,
+                                                    imageName: "sportscourt",
+                                                    status: event.status.displayName.lowercased(),
+                                                    statusColor: event.status.color,
+                                                    playersCount: event.currentPlayers,
+                                                    maxPlayers: event.maxPlayers,
+                                                    canCancel: event.status == .active,
+                                                    onCancel: { eventToCancel = event; showCancelAlert = true },
+                                                    action: { navigateToEditEvent = true }
+                                                )
+                                            }
+                                        }
+                                    }
+                                    .padding(.horizontal, 20)
+                                }
+                                
+                                Spacer().frame(height: 20)
+                            }
+                        }
+                        
+                        // Fixed bottom section with statistics and create button
+                        VStack(spacing: 16) {
+                            // Statistics Section
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Hosting Statistics")
+                                    .font(.system(size: 18, weight: .bold, design: .default))
                                     .foregroundColor(.black)
                                     .padding(.horizontal, 20)
-                                
-                                // Event cards
-                                VStack(spacing: 12) {
-                                    HostedEventCard(
-                                        title: "Charity Run 5K",
-                                        date: "Sep 25, 2025",
-                                        location: "Gastown, Vancouver",
-                                        imageName: "charity_run",
-                                        status: "hosting",
-                                        statusColor: .orange,
-                                        playersCount: 45,
-                                        maxPlayers: 200,
-                                        canCancel: true,
-                                        onCancel: { eventToCancel = "Charity Run 5K"; showCancelAlert = true },
-                                        action: { navigateToEditEvent = true }
-                                    )
-                                    
-                                    HostedEventCard(
-                                        title: "Community Basketball",
-                                        date: "Sep 23, 2025",
-                                        location: "Local Gym Arena",
-                                        imageName: "basketball",
-                                        status: "attending",
-                                        statusColor: .green,
-                                        playersCount: 8,
-                                        maxPlayers: 10,
-                                        canCancel: false,
-                                        onCancel: {},
-                                        action: { navigateToEditEvent = true }
-                                    )
+                                HStack(spacing: 12) {
+                                    StatCard(title: "Events Hosted", value: "\(authManager.hostedEvents.count)", icon: "calendar", color: .royalBlue)
+                                    StatCard(title: "Total Players", value: "\(authManager.hostedEvents.reduce(0) { $0 + $1.currentPlayers })", icon: "person.3", color: .green)
+                                    StatCard(title: "Active Events", value: "\(authManager.hostedEvents.filter { $0.status == .active }.count)", icon: "star", color: .orange)
                                 }
                                 .padding(.horizontal, 20)
                             }
                             
-                            // Statistics Section
-                            VStack(alignment: .leading, spacing: 16) {
-                                Text("Hosting Statistics")
-                                    .font(.system(size: 20, weight: .bold, design: .default))
-                                    .foregroundColor(.black)
-                                    .padding(.horizontal, 20)
-                                HStack(spacing: 16) {
-                                    StatCard(title: "Events Hosted", value: "12", icon: "calendar", color: .blue)
-                                    StatCard(title: "Total Players", value: "156", icon: "person.3", color: .green)
-                                    StatCard(title: "Avg. Rating", value: "4.8", icon: "star", color: .orange)
-                                }
-                                .padding(.horizontal, 20)
+                            // Create Event Button
+                            AnimatedButton(title: "Create New Event") {
+                                navigateToCreateEvent = true
                             }
-                            Spacer().frame(height: 80)
+                            .padding(.horizontal, 20)
+                            .padding(.bottom, 24)
                         }
-                    }
-                    // Create Event Button at the bottom
-                    VStack {
-                        Spacer()
-                        AnimatedButton(title: "Create New Event") {
-                            navigateToCreateEvent = true
-                        }
-                        .padding(.horizontal, 20)
-                        .padding(.bottom, 24)
+                        .background(Color.white)
                     }
                 }
                 .alert(isPresented: $showCancelAlert) {
                     Alert(
                         title: Text("Cancel Event"),
-                        message: Text("Are you sure you want to cancel \(eventToCancel ?? "this event")? This action cannot be undone."),
+                        message: Text("Are you sure you want to cancel \(eventToCancel?.title ?? "this event")? This action cannot be undone."),
                         primaryButton: .destructive(Text("Cancel Event")) {
-                            // TODO: Integrate cancel logic
+                            if let event = eventToCancel {
+                                Task {
+                                    await authManager.cancelEvent(id: event.id)
+                                }
+                            }
                         },
                         secondaryButton: .cancel()
                     )
@@ -124,11 +138,18 @@ struct HostView: View {
             }
             .navigationDestination(isPresented: $navigateToCreateEvent) {
                 CreateEventView()
+                    .environmentObject(authManager)
             }
             .navigationDestination(isPresented: $navigateToEditEvent) {
                 EditEventView()
+                    .environmentObject(authManager)
             }
             .navigationBarHidden(true)
+            .onAppear {
+                Task {
+                    await authManager.fetchHostedEvents()
+                }
+            }
         }
     }
 }
@@ -201,7 +222,7 @@ struct HostedEventCard: View {
                 .padding()
                 .background(Color.white)
                 .cornerRadius(12)
-                .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
+                
             }
             .buttonStyle(PlainButtonStyle())
             if canCancel {
@@ -246,10 +267,12 @@ struct StatCard: View {
         .padding()
         .background(Color.white)
         .cornerRadius(12)
-        .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
+
     }
 }
 
 #Preview {
     HostView(selectedTab: .constant(0))
+        .environmentObject(AuthManager())
 } 
+ 

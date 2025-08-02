@@ -9,6 +9,8 @@ import SwiftUI
 
 struct CreateEventView: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var authManager: AuthManager
+    @State private var title = ""
     @State private var sportType = ""
     @State private var location = ""
     @State private var skillLevel: Double = 5
@@ -18,6 +20,10 @@ struct CreateEventView: View {
     @State private var tempPlayersNeeded = ""
     @State private var showSuccessMessage = false
     @State private var isEventCreated = false
+    @State private var selectedDate = Date()
+    @State private var showAlert = false
+    @State private var alertMessage = ""
+    @State private var isLoading = false
     
     var body: some View {
         NavigationStack {
@@ -46,7 +52,7 @@ struct CreateEventView: View {
                             Spacer()
                             
                             Circle()
-                                .fill(Color.blue)
+                                .fill(Color.royalBlue)
                                 .frame(width: 32, height: 32)
                                 .overlay(
                                     Text("BL")
@@ -60,12 +66,37 @@ struct CreateEventView: View {
                         // Form Fields
                         VStack(spacing: 30) {
                             VStack(alignment: .leading, spacing: 8) {
+                                Text("Event Title")
+                                    .font(.system(size: 16, weight: .medium, design: .default))
+                                    .foregroundColor(.black)
+                                    .padding(.horizontal, 15)
+                                
+                                TextField("Enter event title", text: $title)
+                                    .foregroundColor(.black)
+                                    .accentColor(.royalBlue)
+                                    .tint(.gray.opacity(0.9))
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 12)
+                                    .background(Color.white)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                                    )
+                                    .cornerRadius(12)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.horizontal, 25)
+                            }
+                            
+                            VStack(alignment: .leading, spacing: 8) {
                                 Text("Sport Type")
                                     .font(.system(size: 16, weight: .medium, design: .default))
                                     .foregroundColor(.black)
                                     .padding(.horizontal, 15)
                                 
                                 TextField("Select Sport", text: $sportType)
+                                    .foregroundColor(.black)
+                                    .accentColor(.royalBlue)
+                                    .tint(.gray.opacity(0.9))
                                     .padding(.horizontal, 16)
                                     .padding(.vertical, 12)
                                     .background(Color.white)
@@ -90,6 +121,9 @@ struct CreateEventView: View {
                                         .frame(width: 20)
                                     
                                     TextField("Enter venue or address", text: $location)
+                                    .foregroundColor(.black)
+                                    .accentColor(.royalBlue)
+                                    .tint(.gray.opacity(0.9))
                                 }
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 12)
@@ -111,10 +145,10 @@ struct CreateEventView: View {
                                 
                                 Text("Intermediate (\(Int(skillLevel)))")
                                     .font(.system(size: 16, weight: .bold, design: .default))
-                                    .foregroundColor(.blue)
+                                    .foregroundColor(.royalBlue)
                                 
                                 Slider(value: $skillLevel, in: 1...10, step: 1)
-                                    .accentColor(.blue)
+                                    .accentColor(.royalBlue)
                             }
                             .padding(.horizontal, 20)
                             
@@ -131,9 +165,9 @@ struct CreateEventView: View {
                                         }
                                     }) {
                                         Image(systemName: "minus")
-                                            .foregroundColor(.blue)
+                                            .foregroundColor(.royalBlue)
                                             .frame(width: 32, height: 32)
-                                            .background(Color.blue.opacity(0.1))
+                                            .background(Color.royalBlue.opacity(0.1))
                                             .clipShape(Circle())
                                     }
                                     
@@ -141,6 +175,9 @@ struct CreateEventView: View {
                                     
                                     if isEditingPlayers {
                                         TextField("", text: $tempPlayersNeeded)
+                                    .foregroundColor(.black)
+                                    .accentColor(.royalBlue)
+                                    .tint(.gray.opacity(0.9))
                                             .font(.system(size: 32, weight: .bold, design: .default))
                                             .foregroundColor(.black)
                                             .multilineTextAlignment(.center)
@@ -171,9 +208,9 @@ struct CreateEventView: View {
                                         playersNeeded += 1
                                     }) {
                                         Image(systemName: "plus")
-                                            .foregroundColor(.blue)
+                                            .foregroundColor(.royalBlue)
                                             .frame(width: 32, height: 32)
-                                            .background(Color.blue.opacity(0.1))
+                                            .background(Color.royalBlue.opacity(0.1))
                                             .clipShape(Circle())
                                     }
                                 }
@@ -188,6 +225,9 @@ struct CreateEventView: View {
                                     .foregroundColor(.black)
                                 
                                 TextField("e.g., Price, court fee split, equipment info, rules...", text: $additionalNotes, axis: .vertical)
+                                    .foregroundColor(.black)
+                                    .accentColor(.royalBlue)
+                                    .tint(.gray.opacity(0.9))
                                     .textFieldStyle(PlainTextFieldStyle())
                                     .lineLimit(4...6)
                                     .padding()
@@ -202,25 +242,20 @@ struct CreateEventView: View {
                             
                             // Create Event Button
                             AnimatedButton(
-                                title: isEventCreated ? "Event Created!" : "Create Event",
+                                title: isLoading ? "Creating..." : (isEventCreated ? "Event Created!" : "Create Event"),
                                 style: isEventCreated ? .success : .primary
                             ) {
-                                if !isEventCreated {
-                                    // Show success message
-                                    showSuccessMessage = true
-                                    isEventCreated = true
-                                    
-                                    // Hide success message after 2 seconds
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                                        showSuccessMessage = false
-                                    }
-                                    
-                                    // Dismiss after 3 seconds
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                                        dismiss()
+                                if !isEventCreated && !isLoading {
+                                    Task {
+                                        isLoading = true
+                                        print("Creating event...")
+                                        await createEvent()
+                                        isLoading = false
+                                        print("Event creation completed")
                                     }
                                 }
                             }
+                            .disabled(isLoading)
                             .padding(.horizontal, 20)
                         }
                         
@@ -246,7 +281,7 @@ struct CreateEventView: View {
                         .padding()
                         .background(Color.white)
                         .cornerRadius(12)
-                        .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
+
                         .padding(.horizontal, 40)
                         .padding(.bottom, 100)
                         
@@ -257,10 +292,79 @@ struct CreateEventView: View {
                 }
             }
             .navigationBarHidden(true)
+            .alert("Event Creation", isPresented: $showAlert) {
+                Button("OK") {
+                    if alertMessage.contains("success") {
+                        dismiss()
+                    }
+                }
+            } message: {
+                Text(alertMessage)
+            }
         }
+    }
+    
+    private func createEvent() async {
+        print("Starting event creation...")
+        
+        // Validate required fields
+        guard !title.isEmpty else {
+            print("Title is empty")
+            alertMessage = "Please enter an event title"
+            showAlert = true
+            return
+        }
+        
+        guard !sportType.isEmpty else {
+            print("Sport type is empty")
+            alertMessage = "Please select a sport type"
+            showAlert = true
+            return
+        }
+        
+        guard !location.isEmpty else {
+            print("Location is empty")
+            alertMessage = "Please enter a location"
+            showAlert = true
+            return
+        }
+        
+        guard let userId = authManager.currentUser?.id else {
+            print("User not authenticated")
+            alertMessage = "User not authenticated"
+            showAlert = true
+            return
+        }
+        
+        let eventRequest = CreateEventRequest(
+            title: title,
+            description: additionalNotes.isEmpty ? nil : additionalNotes,
+            sportType: sportType,
+            location: location,
+            latitude: nil, // TODO: Add location services
+            longitude: nil, // TODO: Add location services
+            dateTime: selectedDate,
+            durationMinutes: 120, // Default 2 hours
+            maxPlayers: playersNeeded,
+            skillLevel: Int(skillLevel),
+            hostId: userId.uuidString
+        )
+        
+        let success = await authManager.createEvent(eventRequest)
+        
+        if success {
+            alertMessage = "Event created successfully! 🎉"
+            isEventCreated = true
+        } else {
+            alertMessage = authManager.errorMessage ?? "Failed to create event"
+        }
+        
+        showAlert = true
     }
 }
 
 #Preview {
     CreateEventView()
+        .environmentObject(AuthManager())
 } 
+ 

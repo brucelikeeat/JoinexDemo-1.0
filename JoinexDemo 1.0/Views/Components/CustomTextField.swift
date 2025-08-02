@@ -7,6 +7,20 @@
 
 import SwiftUI
 
+// Custom placeholder color modifier
+struct PlaceholderStyle: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .foregroundColor(.gray.opacity(0.95))
+    }
+}
+
+extension View {
+    func placeholderStyle() -> some View {
+        modifier(PlaceholderStyle())
+    }
+}
+
 struct CustomTextField: View {
     let label: String
     let placeholder: String
@@ -44,8 +58,14 @@ struct CustomTextField: View {
                     Group {
                         if isPasswordVisible {
                             TextField(placeholder, text: text)
+                                .foregroundColor(.black)
+                                .accentColor(.royalBlue)
+                                .placeholderStyle()
                         } else {
                             SecureField(placeholder, text: text)
+                                .foregroundColor(.black)
+                                .accentColor(.royalBlue)
+                                .placeholderStyle()
                         }
                     }
                     .keyboardType(keyboardType)
@@ -59,6 +79,9 @@ struct CustomTextField: View {
                     }
                 } else {
                     TextField(placeholder, text: text)
+                        .foregroundColor(.black)
+                        .accentColor(.royalBlue)
+                        .placeholderStyle()
                         .keyboardType(keyboardType)
                         .focused($isFocused)
                 }
@@ -67,7 +90,7 @@ struct CustomTextField: View {
             .background(Color.white)
             .overlay(
                 RoundedRectangle(cornerRadius: 8)
-                    .stroke(isFocused ? Color.blue : Color.gray.opacity(0.3), lineWidth: 1)
+                    .stroke(isFocused ? Color.royalBlue : Color.gray.opacity(0.3), lineWidth: 1)
             )
             .cornerRadius(8)
         }

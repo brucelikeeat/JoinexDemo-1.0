@@ -46,7 +46,7 @@ struct EditEventView: View {
                             Spacer()
                             
                             Circle()
-                                .fill(Color.blue)
+                                .fill(Color.royalBlue)
                                 .frame(width: 32, height: 32)
                                 .overlay(
                                     Text("BL")
@@ -66,6 +66,9 @@ struct EditEventView: View {
                                     .padding(.horizontal, 15)
                                 
                                 TextField("Select Sport", text: $sportType)
+                                    .foregroundColor(.black)
+                                    .accentColor(.royalBlue)
+                                    .tint(.gray.opacity(0.9))
                                     .padding(.horizontal, 16)
                                     .padding(.vertical, 12)
                                     .background(Color.white)
@@ -90,6 +93,9 @@ struct EditEventView: View {
                                         .frame(width: 20)
                                     
                                     TextField("Enter venue or address", text: $location)
+                                    .foregroundColor(.black)
+                                    .accentColor(.royalBlue)
+                                    .tint(.gray.opacity(0.9))
                                 }
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 12)
@@ -111,10 +117,10 @@ struct EditEventView: View {
                                 
                                 Text("Intermediate (\(Int(skillLevel)))")
                                     .font(.system(size: 16, weight: .bold, design: .default))
-                                    .foregroundColor(.blue)
+                                    .foregroundColor(.royalBlue)
                                 
                                 Slider(value: $skillLevel, in: 1...10, step: 1)
-                                    .accentColor(.blue)
+                                    .accentColor(.royalBlue)
                             }
                             .padding(.horizontal, 20)
                             
@@ -131,9 +137,9 @@ struct EditEventView: View {
                                         }
                                     }) {
                                         Image(systemName: "minus")
-                                            .foregroundColor(.blue)
+                                            .foregroundColor(.royalBlue)
                                             .frame(width: 32, height: 32)
-                                            .background(Color.blue.opacity(0.1))
+                                            .background(Color.royalBlue.opacity(0.1))
                                             .clipShape(Circle())
                                     }
                                     
@@ -141,6 +147,9 @@ struct EditEventView: View {
                                     
                                     if isEditingPlayers {
                                         TextField("", text: $tempPlayersNeeded)
+                                    .foregroundColor(.black)
+                                    .accentColor(.royalBlue)
+                                    .tint(.gray.opacity(0.9))
                                             .font(.system(size: 32, weight: .bold, design: .default))
                                             .foregroundColor(.black)
                                             .multilineTextAlignment(.center)
@@ -171,9 +180,9 @@ struct EditEventView: View {
                                         playersNeeded += 1
                                     }) {
                                         Image(systemName: "plus")
-                                            .foregroundColor(.blue)
+                                            .foregroundColor(.royalBlue)
                                             .frame(width: 32, height: 32)
-                                            .background(Color.blue.opacity(0.1))
+                                            .background(Color.royalBlue.opacity(0.1))
                                             .clipShape(Circle())
                                     }
                                 }
@@ -188,6 +197,9 @@ struct EditEventView: View {
                                     .foregroundColor(.black)
                                 
                                 TextField("Enter notes...", text: $additionalNotes, axis: .vertical)
+                                    .foregroundColor(.black)
+                                    .accentColor(.royalBlue)
+                                    .tint(.gray.opacity(0.9))
                                     .textFieldStyle(PlainTextFieldStyle())
                                     .lineLimit(4...6)
                                     .padding()
@@ -246,7 +258,7 @@ struct EditEventView: View {
                         .padding()
                         .background(Color.white)
                         .cornerRadius(12)
-                        .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
+
                         .padding(.horizontal, 40)
                         .padding(.bottom, 100)
                         

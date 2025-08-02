@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Supabase
 
 struct MainTabView: View {
     @State private var selectedTab = 0
@@ -47,7 +48,19 @@ struct MainTabView: View {
                 }
                 .tag(4)
         }
-        .accentColor(.blue)
+        .accentColor(.royalBlue)
+        .preferredColorScheme(.light)
+        .onAppear {
+            // Ensure consistent tab bar appearance
+            let appearance = UITabBarAppearance()
+            appearance.configureWithOpaqueBackground()
+            appearance.backgroundColor = UIColor.white
+            
+            UITabBar.appearance().standardAppearance = appearance
+            UITabBar.appearance().scrollEdgeAppearance = appearance
+            UITabBar.appearance().unselectedItemTintColor = UIColor.gray
+            UITabBar.appearance().tintColor = UIColor(Color.royalBlue)
+        }
     }
 }
 
@@ -59,6 +72,7 @@ struct HomeTab: View {
             HomeView(selectedTab: $selectedTab)
             // Add .navigationDestination(for:) as needed for Home subpages
         }
+        .navigationBarHidden(true)
     }
 }
 
@@ -70,6 +84,7 @@ struct ExploreTab: View {
             ExploreView(selectedTab: $selectedTab)
             // Add .navigationDestination(for:) as needed for Explore subpages
         }
+        .navigationBarHidden(true)
     }
 }
 
@@ -81,6 +96,7 @@ struct HostTab: View {
             HostView(selectedTab: $selectedTab)
             // Add .navigationDestination(for:) as needed for Host subpages
         }
+        .navigationBarHidden(true)
     }
 }
 
@@ -92,6 +108,7 @@ struct MessagesTab: View {
             MessagesView(selectedTab: $selectedTab)
             // Add .navigationDestination(for:) as needed for Messages subpages
         }
+        .navigationBarHidden(true)
     }
 }
 
@@ -103,6 +120,7 @@ struct ProfileTab: View {
             ProfileView(selectedTab: $selectedTab)
             // Add .navigationDestination(for:) as needed for Profile subpages
         }
+        .navigationBarHidden(true)
     }
 }
 

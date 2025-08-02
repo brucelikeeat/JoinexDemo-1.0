@@ -9,19 +9,21 @@ import SwiftUI
 
 struct ProfileView: View {
     @Binding var selectedTab: Int
+    @EnvironmentObject var authManager: AuthManager
     @State private var navigateToEditProfile = false
+    @State private var isLoading = false
     
     var body: some View {
         NavigationStack {
             ZStack {
                 Color.white
-                    .ignoresSafeArea()
+                    .ignoresSafeArea(.all, edges: .top)
                 
                 ScrollView {
                     VStack(spacing: 20) {
                         // Header
                         HStack {
-                            Text("brucelikeeat's Profile")
+                            Text("\(authManager.profile?.username ?? "User")'s Profile")
                                 .font(.system(size: 24, weight: .bold, design: .default))
                                 .foregroundColor(.black)
                             
@@ -42,19 +44,18 @@ struct ProfileView: View {
                         .padding(.horizontal, 20)
                         .padding(.top, 10)
                         
-                        // Profile Picture
-                        Circle()
-                            .fill(Color.blue)
-                            .frame(width: 100, height: 100)
-                            .overlay(
-                                Text("BL")
-                                    .font(.system(size: 36, weight: .bold, design: .default))
-                                    .foregroundColor(.white)
-                            )
+                                                       // Profile Picture
+                               Image("logo1")
+                                   .resizable()
+                                   .aspectRatio(contentMode: .fit)
+                                   .frame(width: 100, height: 100)
                         
-                        Text("brucelikeeat")
-                            .font(.system(size: 20, weight: .bold, design: .default))
+                        Text(authManager.profile?.username ?? "User")
+                            .font(.system(size: 18, weight: .bold, design: .default))
                             .foregroundColor(.black)
+                            .lineLimit(1)
+                            .frame(maxWidth: .infinity)
+                            .padding(.horizontal, 20)
                         
                         // About Me Section
                         VStack(alignment: .leading, spacing: 12) {
@@ -62,7 +63,7 @@ struct ProfileView: View {
                                 .font(.system(size: 18, weight: .bold, design: .default))
                                 .foregroundColor(.black)
                             
-                            Text("I'm an active sports lover who plays badminton, tennis, and more. I enjoys meeting new people who share the same passion for staying active and having fun through sports.")
+                            Text(authManager.profile?.bio ?? "No bio available")
                                 .font(.system(size: 14, weight: .regular, design: .default))
                                 .foregroundColor(.gray)
                                 .lineSpacing(2)
@@ -70,7 +71,7 @@ struct ProfileView: View {
                         .padding()
                         .background(Color.white)
                         .cornerRadius(16)
-                        .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
+
                         .padding(.horizontal, 20)
                         
                         // Events Section
@@ -103,11 +104,21 @@ struct ProfileView: View {
                         
                         Spacer()
                             .frame(height: 20)
+                        
+                        // Sign Out Button
+                        AnimatedButton(title: "Sign Out", style: .secondary) {
+                            Task {
+                                await authManager.signOut()
+                            }
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 20)
                     }
                 }
             }
             .navigationDestination(isPresented: $navigateToEditProfile) {
                 EditProfileView()
+                    .environmentObject(authManager)
             }
             .navigationBarHidden(true)
         }
@@ -175,10 +186,11 @@ struct ProfileEventCard: View {
         .padding()
         .background(Color.white)
         .cornerRadius(12)
-        .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
+        
     }
 }
 
 #Preview {
     ProfileView(selectedTab: .constant(0))
+        .environmentObject(AuthManager())
 }

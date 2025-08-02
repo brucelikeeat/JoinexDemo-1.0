@@ -9,25 +9,32 @@ import SwiftUI
 
 struct HomeView: View {
     @Binding var selectedTab: Int
+    @EnvironmentObject var authManager: AuthManager
     @State private var navigateToEventDetail = false
+    @State private var selectedEvent: Event? = nil
     
     var body: some View {
         NavigationStack {
             ZStack {
                 Color.white
-                    .ignoresSafeArea()
+                    .ignoresSafeArea(.all, edges: .top)
                 
                 ScrollView {
                     VStack(spacing: 20) {
                         // Header
                         HStack {
+                            Image("logo1")
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 24, height: 24)
+                            
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("Good morning!")
                                     .font(.system(size: 16, weight: .regular, design: .default))
                                     .foregroundColor(.gray)
                                 
-                                Text("brucelikeeat")
-                                    .font(.system(size: 24, weight: .bold, design: .default))
+                                Text(authManager.profile?.username ?? "User")
+                                    .font(.system(size: 20, weight: .bold, design: .default))
                                     .foregroundColor(.black)
                             }
                             
@@ -47,7 +54,7 @@ struct HomeView: View {
                                 selectedTab = 4
                             }) {
                                 Circle()
-                                    .fill(Color.blue)
+                                    .fill(Color.royalBlue)
                                     .frame(width: 40, height: 40)
                                     .overlay(
                                         Text("BL")
@@ -62,31 +69,31 @@ struct HomeView: View {
                         // Upcoming Events Section
                         VStack(alignment: .leading, spacing: 16) {
                             Text("Upcoming Events")
-                                .font(.system(size: 20, weight: .bold, design: .default))
+                                .font(.system(size: 18, weight: .bold, design: .default))
                                 .foregroundColor(.black)
                             
                             // Event cards
-                            VStack(spacing: 12) {
-                                EventCard(
-                                    title: "UBC Badminton Centre",
-                                    date: "Today, 2:00 PM",
-                                    location: "Vancouver, BC",
-                                    imageName: "badminton_court_1",
-                                    status: "Open",
-                                    statusColor: .green
-                                ) {
-                                    navigateToEventDetail = true
+                            if authManager.userEvents.isEmpty {
+                                VStack(spacing: 12) {
+                                    Text("No upcoming events")
+                                        .font(.system(size: 16, weight: .medium, design: .default))
+                                        .foregroundColor(.gray)
+                                        .padding(.vertical, 40)
                                 }
-                                
-                                EventCard(
-                                    title: "Richmond Ace Badminton",
-                                    date: "Tomorrow, 10:00 AM",
-                                    location: "Richmond, BC",
-                                    imageName: "badminton_court_2",
-                                    status: "Full",
-                                    statusColor: .red
-                                ) {
-                                    navigateToEventDetail = true
+                            } else {
+                                VStack(spacing: 12) {
+                                    ForEach(authManager.userEvents.prefix(3)) { event in
+                                        EventCard(
+                                            title: event.title,
+                                            date: event.formattedDateTime,
+                                            location: event.location,
+                                            imageName: "sportscourt",
+                                            status: event.isFull ? "Full" : "Open",
+                                            statusColor: event.isFull ? .red : .green
+                                        ) {
+                                            selectedEvent = event
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -95,7 +102,7 @@ struct HomeView: View {
                         // Recent Activity Section
                         VStack(alignment: .leading, spacing: 16) {
                             Text("Recent Activity")
-                                .font(.system(size: 20, weight: .bold, design: .default))
+                                .font(.system(size: 18, weight: .bold, design: .default))
                                 .foregroundColor(.black)
                             
                             VStack(spacing: 12) {
@@ -112,7 +119,7 @@ struct HomeView: View {
                                     subtitle: "See you in 30 min",
                                     time: "1 hour ago",
                                     icon: "message.fill",
-                                    iconColor: .blue
+                                    iconColor: .royalBlue
                                 )
                             }
                         }
@@ -123,10 +130,15 @@ struct HomeView: View {
                     }
                 }
             }
-            .navigationDestination(isPresented: $navigateToEventDetail) {
-                EventDetailView()
+            .navigationDestination(item: $selectedEvent) { event in
+                EventDetailView(event: event)
             }
             .navigationBarHidden(true)
+            .onAppear {
+                Task {
+                    await authManager.fetchEvents()
+                }
+            }
         }
     }
 }
@@ -181,7 +193,7 @@ struct EventCard: View {
             .padding()
             .background(Color.white)
             .cornerRadius(12)
-            .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
+
         }
         .buttonStyle(PlainButtonStyle())
     }
@@ -220,10 +232,11 @@ struct ActivityCard: View {
         .padding()
         .background(Color.white)
         .cornerRadius(12)
-        .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
+        
     }
 }
 
 #Preview {
     HomeView(selectedTab: .constant(0))
+        .environmentObject(AuthManager())
 } 

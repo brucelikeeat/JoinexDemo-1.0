@@ -14,11 +14,16 @@ struct MessagesView: View {
         NavigationStack {
             ZStack {
                 Color.white
-                    .ignoresSafeArea()
+                    .ignoresSafeArea(.all, edges: .top)
                 
                 VStack(spacing: 0) {
                     // Header
                     HStack {
+                        Image("logo1")
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 24, height: 24)
+                        
                         Text("Messages")
                             .font(.system(size: 24, weight: .bold, design: .default))
                             .foregroundColor(.black)
@@ -41,7 +46,7 @@ struct MessagesView: View {
                             selectedTab = 4
                         }) {
                             Circle()
-                                .fill(Color.blue)
+                                .fill(Color.royalBlue)
                                 .frame(width: 40, height: 40)
                                 .overlay(
                                     Text("BL")

@@ -7,7 +7,9 @@
 
 import SwiftUI
 
+
 struct WelcomeView: View {
+    @EnvironmentObject var authManager: AuthManager
     @State private var navigateToLogin = false
     @State private var navigateToRegister = false
     
@@ -23,7 +25,10 @@ struct WelcomeView: View {
                     
                     // Logo and App Name
                     VStack(spacing: 20) {
-                        JoinixLogo(size: 80)
+                        Image("logo1")
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 200, height: 180)
                         
                         // App Name
                         Text("Joinix")
@@ -81,4 +86,6 @@ struct WelcomeView: View {
 
 #Preview {
     WelcomeView()
+        .environmentObject(AuthManager())
 } 
+ 

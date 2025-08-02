@@ -9,14 +9,17 @@ import SwiftUI
 
 struct ExploreView: View {
     @Binding var selectedTab: Int
+    @EnvironmentObject var authManager: AuthManager
     @State private var searchText = ""
     @State private var selectedSport = "All Sports"
     @State private var navigateToEventDetail = false
+    @State private var selectedEvent: Event? = nil
     @State private var selectedDateIndex = 0
     @State private var selectedDistance = 10
     @State private var showLocationSheet = false
     @State private var locationText = "Surrey, British Columbia"
     @State private var radius = 40
+    @State private var showFilters = false
     
     let sports = ["All Sports", "Badminton", "Tennis", "Basketball", "Soccer", "Running"]
     let distances = [1, 5, 10, 25, 40, 50] // km
@@ -26,7 +29,7 @@ struct ExploreView: View {
         let formatter = DateFormatter()
         formatter.dateFormat = "E"
         return (0..<5).map { offset in
-            let date = calendar.date(byAdding: .day, value: offset, to: today)!
+            let date = calendar.date(byAdding: .day, value: offset, to: today) ?? today
             if offset == 0 { return "Today" }
             if offset == 1 { return "Tue" }
             return formatter.string(from: date)
@@ -38,7 +41,7 @@ struct ExploreView: View {
         let formatter = DateFormatter()
         formatter.dateFormat = "dd"
         return (0..<5).map { offset in
-            let date = calendar.date(byAdding: .day, value: offset, to: today)!
+            let date = calendar.date(byAdding: .day, value: offset, to: today) ?? today
             return formatter.string(from: date)
         }
     }()
@@ -47,16 +50,23 @@ struct ExploreView: View {
         NavigationStack {
             ZStack {
                 Color.white
-                    .ignoresSafeArea()
+                    .ignoresSafeArea(.all, edges: .top)
                 
                 VStack(spacing: 0) {
                     // Header
                     ZStack {
-                        Text("Explore")
-                            .font(.system(size: 18, weight: .bold, design: .default))
-                            .foregroundColor(.black)
                         HStack {
+                            Image("logo1")
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 20, height: 20)
+                            
+                            Text("Explore")
+                                .font(.system(size: 16, weight: .bold, design: .default))
+                                .foregroundColor(.black)
+                            
                             Spacer()
+                            
                             // Notification bell
                             Button(action: {
                                 // Handle notifications
@@ -65,12 +75,13 @@ struct ExploreView: View {
                                     .font(.title2)
                                     .foregroundColor(.black)
                             }
+                            
                             // Profile picture
                             Button(action: {
                                 selectedTab = 4
                             }) {
                                 Circle()
-                                    .fill(Color.blue)
+                                    .fill(Color.royalBlue)
                                     .frame(width: 32, height: 32)
                                     .overlay(
                                         Text("BL")
@@ -91,7 +102,10 @@ struct ExploreView: View {
                                 .foregroundColor(.gray)
                             
                             TextField("Search events...", text: $searchText)
+                                .foregroundColor(.black)
+                                .accentColor(.royalBlue)
                                 .textFieldStyle(PlainTextFieldStyle())
+                                .tint(.gray.opacity(0.9))
                             
                             if !searchText.isEmpty {
                                 Button(action: {
@@ -106,26 +120,24 @@ struct ExploreView: View {
                         .background(Color.gray.opacity(0.1))
                         .cornerRadius(12)
                         
-                        // Location/Distance filter (centered, full width, clickable)
-                        Button(action: { showLocationSheet = true }) {
-                            HStack(spacing: 8) {
-                                Image(systemName: "mappin.and.ellipse")
-                                    .foregroundColor(.gray)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("Location")
-                                        .font(.system(size: 13, weight: .regular))
-                                        .foregroundColor(.gray)
-                                    Text(locationText)
-                                        .font(.system(size: 16, weight: .medium))
-                                        .foregroundColor(.black)
-                                }
-                                Spacer()
-                                Text("• Within \(radius) kilometers")
-                                    .font(.system(size: 15, weight: .regular))
-                                    .foregroundColor(.gray)
+                        // Filter Toggle Button
+                        Button(action: { 
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                showFilters.toggle()
                             }
-                            .padding(.vertical, 14)
-                            .padding(.horizontal, 16)
+                        }) {
+                            HStack {
+                                Image(systemName: "line.3.horizontal.decrease.circle")
+                                    .foregroundColor(.royalBlue)
+                                Text("Filters")
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundColor(.royalBlue)
+                                Spacer()
+                                Image(systemName: showFilters ? "chevron.up" : "chevron.down")
+                                    .foregroundColor(.royalBlue)
+                                    .font(.system(size: 14))
+                            }
+                            .padding()
                             .background(Color.white)
                             .cornerRadius(12)
                             .overlay(
@@ -133,56 +145,112 @@ struct ExploreView: View {
                                     .stroke(Color.gray.opacity(0.2), lineWidth: 1)
                             )
                         }
-                        .frame(maxWidth: .infinity)
                         
-                        // Date selector
-                        HStack(spacing: 12) {
-                            ForEach(0..<5) { i in
-                                Button(action: {
-                                    selectedDateIndex = i
-                                }) {
-                                    VStack(spacing: 4) {
-                                        Text(dateLabels[i])
-                                            .font(.system(size: 14, weight: .medium))
-                                            .foregroundColor(selectedDateIndex == i ? .white : .gray)
-                                        Text(dateNumbers[i])
-                                            .font(.system(size: 18, weight: .bold))
-                                            .foregroundColor(selectedDateIndex == i ? .white : .black)
-                                    }
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 10)
-                                    .background(selectedDateIndex == i ? Color.blue : Color.gray.opacity(0.08))
-                                    .cornerRadius(16)
-                                }
-                            }
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.horizontal, 2)
-                        
-                        // Sport filter
-                        ScrollViewReader { scrollProxy in
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 12) {
-                                    ForEach(sports, id: \.self) { sport in
-                                        Button(action: {
-                                            withAnimation(.easeInOut) {
-                                                selectedSport = sport
-                                                scrollProxy.scrollTo(sport, anchor: .center)
+                        // Collapsible Filters
+                        if showFilters {
+                            VStack(spacing: 12) {
+                                // Sport Type Filter
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Sport Type")
+                                        .font(.system(size: 14, weight: .medium))
+                                        .foregroundColor(.black)
+                                    
+                                    ScrollViewReader { scrollProxy in
+                                        ScrollView(.horizontal, showsIndicators: false) {
+                                            HStack(spacing: 12) {
+                                                ForEach(sports, id: \.self) { sport in
+                                                    Button(action: {
+                                                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                                            selectedSport = sport
+                                                            scrollProxy.scrollTo(sport, anchor: .center)
+                                                        }
+                                                    }) {
+                                                        Text(sport)
+                                                            .font(.system(size: 14, weight: .medium))
+                                                            .foregroundColor(selectedSport == sport ? .white : .royalBlue)
+                                                            .padding(.horizontal, 16)
+                                                            .padding(.vertical, 8)
+                                                            .background(selectedSport == sport ? Color.royalBlue : Color.clear)
+                                                            .overlay(
+                                                                RoundedRectangle(cornerRadius: 20)
+                                                                    .stroke(Color.royalBlue, lineWidth: selectedSport == sport ? 0 : 1)
+                                                            )
+                                                            .cornerRadius(20)
+                                                    }
+                                                    .id(sport)
+                                                }
                                             }
-                                        }) {
-                                            Text(sport)
-                                                .font(.system(size: 14, weight: .medium, design: .default))
-                                                .foregroundColor(selectedSport == sport ? .white : .black)
-                                                .padding(.horizontal, 16)
-                                                .padding(.vertical, 8)
-                                                .background(selectedSport == sport ? Color.blue : Color.gray.opacity(0.1))
-                                                .cornerRadius(20)
+                                            .padding(.horizontal, 4)
                                         }
-                                        .id(sport)
                                     }
                                 }
-                                .padding(.horizontal, 20)
+                                
+                                // Date Filter
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Date")
+                                        .font(.system(size: 14, weight: .medium))
+                                        .foregroundColor(.black)
+                                    
+                                    HStack(spacing: 8) {
+                                        ForEach(0..<5, id: \.self) { index in
+                                            Button(action: {
+                                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                                    selectedDateIndex = index
+                                                }
+                                            }) {
+                                                VStack(spacing: 4) {
+                                                    Text(dateNumbers[index])
+                                                        .font(.system(size: 16, weight: .bold))
+                                                        .foregroundColor(selectedDateIndex == index ? .white : .black)
+                                                    Text(dateLabels[index])
+                                                        .font(.system(size: 12, weight: .regular))
+                                                        .foregroundColor(selectedDateIndex == index ? .white : .gray)
+                                                }
+                                                .padding(.vertical, 8)
+                                                .padding(.horizontal, 12)
+                                                .background(selectedDateIndex == index ? Color.royalBlue : Color.clear)
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: 8)
+                                                        .stroke(Color.gray.opacity(0.3), lineWidth: selectedDateIndex == index ? 0 : 1)
+                                                )
+                                                .cornerRadius(8)
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                // Location Filter
+                                Button(action: { showLocationSheet = true }) {
+                                    HStack(spacing: 8) {
+                                        Image(systemName: "mappin.and.ellipse")
+                                            .foregroundColor(.gray)
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text("Location")
+                                                .font(.system(size: 13, weight: .regular))
+                                                .foregroundColor(.gray)
+                                            Text(locationText)
+                                                .font(.system(size: 16, weight: .medium))
+                                                .foregroundColor(.black)
+                                        }
+                                        Spacer()
+                                        Text("• Within \(radius) kilometers")
+                                            .font(.system(size: 13, weight: .regular))
+                                            .foregroundColor(.gray)
+                                    }
+                                    .padding()
+                                    .background(Color.white)
+                                    .cornerRadius(12)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                                    )
+                                }
                             }
+                            .padding(.horizontal, 16)
+                            .transition(.asymmetric(
+                                insertion: .scale(scale: 0.95).combined(with: .opacity),
+                                removal: .scale(scale: 0.95).combined(with: .opacity)
+                            ))
                         }
                     }
                     .padding(.horizontal, 20)
@@ -191,8 +259,9 @@ struct ExploreView: View {
                     // Events List
                     ScrollView {
                         LazyVStack(spacing: 16) {
-                            ForEach(sampleEvents, id: \.id) { event in
+                            ForEach(authManager.userEvents.isEmpty ? sampleEvents : authManager.userEvents, id: \.id) { event in
                                 ExploreEventCard(event: event) {
+                                    selectedEvent = event
                                     navigateToEventDetail = true
                                 }
                             }
@@ -208,9 +277,16 @@ struct ExploreView: View {
                 }
             }
             .navigationDestination(isPresented: $navigateToEventDetail) {
-                EventDetailView()
+                if let selectedEvent = selectedEvent {
+                    EventDetailView(event: selectedEvent)
+                }
             }
             .navigationBarHidden(true)
+            .onAppear {
+                Task {
+                    await authManager.fetchEvents()
+                }
+            }
         }
     }
 }
@@ -235,35 +311,35 @@ struct ExploreEventCard: View {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         Text(event.title)
-                            .font(.system(size: 18, weight: .bold, design: .default))
+                            .font(.system(size: 16, weight: .bold, design: .default))
                             .foregroundColor(.black)
                             .multilineTextAlignment(.leading)
                         
                         Spacer()
                         
                         // Status badge
-                        Text(event.status)
+                        Text(event.status.displayName)
                             .font(.system(size: 12, weight: .medium, design: .default))
                             .foregroundColor(.white)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
-                            .background(event.statusColor)
+                            .background(event.status.color)
                             .cornerRadius(12)
                     }
                     
                     HStack {
                         Image(systemName: "calendar")
-                            .foregroundColor(.blue)
+                            .foregroundColor(.royalBlue)
                             .font(.caption)
                         
-                        Text(event.date)
+                        Text(event.formattedDateTime)
                             .font(.system(size: 14, weight: .regular, design: .default))
                             .foregroundColor(.gray)
                     }
                     
                     HStack {
                         Image(systemName: "location")
-                            .foregroundColor(.blue)
+                            .foregroundColor(.royalBlue)
                             .font(.caption)
                         
                         Text(event.location)
@@ -273,21 +349,21 @@ struct ExploreEventCard: View {
                     
                     HStack {
                         Image(systemName: "person.2")
-                            .foregroundColor(.blue)
+                            .foregroundColor(.royalBlue)
                             .font(.caption)
                         
-                        Text("\(event.playersCount) / \(event.maxPlayers) players")
+                        Text("\(event.currentPlayers) / \(event.maxPlayers) players")
                             .font(.system(size: 14, weight: .regular, design: .default))
                             .foregroundColor(.gray)
                         
                         Spacer()
                         
-                        Text(event.skillLevel)
+                        Text(event.skillLevelText)
                             .font(.system(size: 12, weight: .medium, design: .default))
-                            .foregroundColor(.blue)
+                            .foregroundColor(.royalBlue)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
-                            .background(Color.blue.opacity(0.1))
+                            .background(Color.royalBlue.opacity(0.1))
                             .cornerRadius(8)
                     }
                 }
@@ -295,29 +371,68 @@ struct ExploreEventCard: View {
             .padding()
             .background(Color.white)
             .cornerRadius(16)
-            .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
+
         }
         .buttonStyle(PlainButtonStyle())
     }
 }
 
-struct Event {
-    let id = UUID()
-    let title: String
-    let date: String
-    let location: String
-    let playersCount: Int
-    let maxPlayers: Int
-    let skillLevel: String
-    let status: String
-    let statusColor: Color
-}
-
-let sampleEvents = [
-    Event(title: "UBC Badminton Centre", date: "Today, 2:00 PM", location: "Vancouver, BC", playersCount: 6, maxPlayers: 8, skillLevel: "Intermediate", status: "Open", statusColor: .green),
-    Event(title: "Richmond Ace Badminton", date: "Tomorrow, 10:00 AM", location: "Richmond, BC", playersCount: 8, maxPlayers: 8, skillLevel: "Beginner", status: "Full", statusColor: .red),
-    Event(title: "Community Tennis", date: "Sep 25, 2025", location: "Stanley Park", playersCount: 3, maxPlayers: 4, skillLevel: "Advanced", status: "Open", statusColor: .green),
-    Event(title: "Basketball Pickup", date: "Sep 26, 2025", location: "Local Gym", playersCount: 8, maxPlayers: 10, skillLevel: "All Levels", status: "Open", statusColor: .green)
+// Sample events for preview (will be replaced with real events from database)
+let sampleEvents: [Event] = [
+    Event(
+        id: "sample-1",
+        title: "UBC Badminton Centre",
+        description: "Join us for a fun badminton session!",
+        sportType: "Badminton",
+        location: "Vancouver, BC",
+        latitude: nil,
+        longitude: nil,
+        dateTime: Date().addingTimeInterval(3600), // 1 hour from now
+        durationMinutes: 120,
+        maxPlayers: 8,
+        currentPlayers: 6,
+        skillLevel: 5,
+        hostId: "sample-host-1",
+        status: .active,
+        createdAt: Date(),
+        updatedAt: Date()
+    ),
+    Event(
+        id: "sample-2",
+        title: "Richmond Ace Badminton",
+        description: "Advanced level badminton game",
+        sportType: "Badminton",
+        location: "Richmond, BC",
+        latitude: nil,
+        longitude: nil,
+        dateTime: Date().addingTimeInterval(7200), // 2 hours from now
+        durationMinutes: 120,
+        maxPlayers: 8,
+        currentPlayers: 8,
+        skillLevel: 7,
+        hostId: "sample-host-2",
+        status: .active,
+        createdAt: Date(),
+        updatedAt: Date()
+    ),
+    Event(
+        id: "sample-3",
+        title: "Community Tennis",
+        description: "All levels welcome!",
+        sportType: "Tennis",
+        location: "Stanley Park, Vancouver",
+        latitude: nil,
+        longitude: nil,
+        dateTime: Date().addingTimeInterval(10800), // 3 hours from now
+        durationMinutes: 90,
+        maxPlayers: 4,
+        currentPlayers: 3,
+        skillLevel: 4,
+        hostId: "sample-host-3",
+        status: .active,
+        createdAt: Date(),
+        updatedAt: Date()
+    )
 ]
 
 struct ChangeLocationView: View {
@@ -349,7 +464,10 @@ struct ChangeLocationView: View {
             Divider()
             // Search field
             HStack {
-                TextField("Search by city, neighborhood or ZIP code.", text: $searchQuery)
+                                            TextField("Search by city, neighborhood or ZIP code.", text: $searchQuery)
+                                .foregroundColor(.black)
+                                .accentColor(.royalBlue)
+                                .tint(.gray.opacity(0.9))
                     .padding(.vertical, 10)
                     .padding(.horizontal, 8)
             }
@@ -441,7 +559,7 @@ struct ChangeLocationView: View {
                         .foregroundColor(.white)
                         .padding(.horizontal, 32)
                         .padding(.vertical, 12)
-                        .background(Color.blue)
+                        .background(Color.royalBlue)
                         .cornerRadius(12)
                 }
                 .padding(.bottom, 24)
@@ -455,4 +573,6 @@ struct ChangeLocationView: View {
 
 #Preview {
     ExploreView(selectedTab: .constant(0))
+        .environmentObject(AuthManager())
 } 
+ 

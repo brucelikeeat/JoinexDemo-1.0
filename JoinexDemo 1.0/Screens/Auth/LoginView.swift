@@ -8,10 +8,11 @@
 import SwiftUI
 
 struct LoginView: View {
+    @EnvironmentObject var authManager: AuthManager
     @Environment(\.dismiss) private var dismiss
     @State private var email = ""
     @State private var password = ""
-    @State private var navigateToMain = false
+    @State private var showAlert = false
     
     var body: some View {
         NavigationStack {
@@ -46,9 +47,16 @@ struct LoginView: View {
                     .padding(.top, 10)
                     
                     Spacer()
+                                
+                    
+                    Spacer()
+                        .frame(height: 20)
                     
                     // Logo
-                    JoinixLogo(size: 60)
+                    Image("logo1")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 80, height: 80)
                     
                     Spacer()
                         .frame(height: 20)
@@ -90,10 +98,15 @@ struct LoginView: View {
                         .frame(height: 40)
                     
                     // Login button
-                    AnimatedButton(title: "Log in") {
-                        // Handle login logic here
-                        navigateToMain = true
+                    AnimatedButton(title: authManager.isLoading ? "Signing in..." : "Log in") {
+                        Task {
+                            let success = await authManager.signIn(email: email, password: password)
+                            if !success {
+                                showAlert = true
+                            }
+                        }
                     }
+                    .disabled(authManager.isLoading)
                     .padding(.horizontal, 20)
                     
                     Spacer()
@@ -105,14 +118,17 @@ struct LoginView: View {
                         .padding(.bottom, 20)
                 }
             }
-            .navigationDestination(isPresented: $navigateToMain) {
-                MainTabView()
-            }
             .navigationBarHidden(true)
+            .alert("Login Error", isPresented: $showAlert) {
+                Button("OK") { }
+            } message: {
+                Text(authManager.errorMessage ?? "An error occurred during login")
+            }
         }
     }
 }
 
 #Preview {
     LoginView()
+        .environmentObject(AuthManager())
 } 
