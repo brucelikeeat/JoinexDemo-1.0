@@ -284,6 +284,9 @@ class AuthManager: ObservableObject {
     @Published var profile: Profile?
     @Published var userEvents: [Event] = []
     @Published var hostedEvents: [Event] = []
+    @Published var conversations: [Conversation] = []
+    @Published var currentConversation: Conversation?
+    @Published var conversationMessages: [Message] = []
     
     private let supabase = SupabaseConfig.client
     
@@ -634,6 +637,159 @@ class AuthManager: ObservableObject {
             errorMessage = error.localizedDescription
             return false
         }
+    }
+    
+    // MARK: - Chat Management
+    
+    // Fetch all conversations for current user
+    func fetchConversations() async {
+        guard let userId = currentUser?.id else { return }
+        
+        do {
+            let conversations: [Conversation] = try await supabase
+                .from("conversations")
+                .select()
+                .or("user1_id.eq.\(userId),user2_id.eq.\(userId)")
+                .order("updated_at", ascending: false)
+                .execute()
+                .value
+            
+            self.conversations = conversations
+        } catch {
+            print("Error fetching conversations: \(error)")
+        }
+    }
+    
+    // Create or get existing conversation between two users
+    func getOrCreateConversation(with userId: String) async -> Conversation? {
+        guard let currentUserId = currentUser?.id else { return nil }
+        
+        do {
+            // Try to find existing conversation
+            let existingConversations: [Conversation] = try await supabase
+                .from("conversations")
+                .select()
+                .or("and(user1_id.eq.\(currentUserId),user2_id.eq.\(userId)),and(user1_id.eq.\(userId),user2_id.eq.\(currentUserId))")
+                .execute()
+                .value
+            
+            if let existing = existingConversations.first {
+                return existing
+            }
+            
+            // Create new conversation
+            let newConversation: Conversation = try await supabase
+                .from("conversations")
+                .insert([
+                    "user1_id": currentUserId,
+                    "user2_id": userId
+                ])
+                .execute()
+                .value
+            
+            return newConversation
+        } catch {
+            print("Error creating conversation: \(error)")
+            return nil
+        }
+    }
+    
+    // Fetch messages for a conversation
+    func fetchMessages(for conversationId: String) async {
+        do {
+            let messages: [Message] = try await supabase
+                .from("messages")
+                .select()
+                .eq("conversation_id", value: conversationId)
+                .order("created_at", ascending: true)
+                .execute()
+                .value
+            
+            self.conversationMessages = messages
+        } catch {
+            print("Error fetching messages: \(error)")
+        }
+    }
+    
+    // Send a message
+    func sendMessage(content: String, to conversationId: String) async -> Bool {
+        guard let senderId = currentUser?.id else { return false }
+        
+        do {
+            let message: Message = try await supabase
+                .from("messages")
+                .insert([
+                    "conversation_id": conversationId,
+                    "sender_id": senderId,
+                    "content": content,
+                    "message_type": "text"
+                ])
+                .execute()
+                .value
+            
+            // Refresh messages
+            await fetchMessages(for: conversationId)
+            
+            // Update conversation's updated_at timestamp
+            _ = try await supabase
+                .from("conversations")
+                .update(["updated_at": "now()"])
+                .eq("id", value: conversationId)
+                .execute()
+            
+            // Refresh conversations list
+            await fetchConversations()
+            
+            return true
+        } catch {
+            print("Error sending message: \(error)")
+            errorMessage = error.localizedDescription
+            return false
+        }
+    }
+    
+    // Get chat list items with user profiles
+    func getChatListItems() async -> [ChatListItem] {
+        var chatItems: [ChatListItem] = []
+        
+        for conversation in conversations {
+            // Get the other user's ID
+            let otherUserId = conversation.user1Id == currentUser?.id.uuidString ? conversation.user2Id : conversation.user1Id
+            
+            // Fetch the other user's profile
+            do {
+                let otherUser: Profile = try await supabase
+                    .from("profiles")
+                    .select()
+                    .eq("id", value: otherUserId)
+                    .single()
+                    .execute()
+                    .value
+                
+                // Get the last message
+                let lastMessages: [Message] = try await supabase
+                    .from("messages")
+                    .select()
+                    .eq("conversation_id", value: conversation.id)
+                    .order("created_at", ascending: false)
+                    .limit(1)
+                    .execute()
+                    .value
+                
+                let lastMessage = lastMessages.first
+                
+                let chatItem = ChatListItem(
+                    conversation: conversation,
+                    otherUser: otherUser,
+                    lastMessage: lastMessage
+                )
+                chatItems.append(chatItem)
+            } catch {
+                print("Error fetching chat item data: \(error)")
+            }
+        }
+        
+        return chatItems
     }
 }
  

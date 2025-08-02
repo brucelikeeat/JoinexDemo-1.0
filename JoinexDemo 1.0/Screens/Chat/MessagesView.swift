@@ -9,7 +9,9 @@ import SwiftUI
 
 struct MessagesView: View {
     @Binding var selectedTab: Int
-    @State private var selectedChat: Chat? = nil
+    @EnvironmentObject var authManager: AuthManager
+    @State private var selectedChat: ChatListItem? = nil
+    @State private var chatListItems: [ChatListItem] = []
     var body: some View {
         NavigationStack {
             ZStack {
@@ -61,11 +63,26 @@ struct MessagesView: View {
                     // Chat List
                     ScrollView {
                         LazyVStack(spacing: 0) {
-                            ForEach(sampleChats, id: \.id) { chat in
-                                ChatRow(chat: chat)
-                                    .onTapGesture {
-                                        selectedChat = chat
-                                    }
+                            if chatListItems.isEmpty {
+                                VStack(spacing: 16) {
+                                    Image(systemName: "message")
+                                        .font(.system(size: 48))
+                                        .foregroundColor(.gray)
+                                    Text("No conversations yet")
+                                        .font(.system(size: 18, weight: .medium))
+                                        .foregroundColor(.gray)
+                                    Text("Start chatting with other users!")
+                                        .font(.system(size: 14))
+                                        .foregroundColor(.gray.opacity(0.7))
+                                }
+                                .padding(.top, 60)
+                            } else {
+                                ForEach(chatListItems, id: \.id) { chat in
+                                    ChatRow(chat: chat)
+                                        .onTapGesture {
+                                            selectedChat = chat
+                                        }
+                                }
                             }
                         }
                         .padding(.top, 20)
@@ -74,10 +91,13 @@ struct MessagesView: View {
             }
             .navigationBarHidden(true)
             .navigationDestination(item: $selectedChat) { chat in
-                ChatRoomView(
-                    chat: chat,
-                    chatHistory: sampleChatHistory(for: chat)
-                )
+                ChatRoomView(chat: chat)
+            }
+            .onAppear {
+                Task {
+                    await authManager.fetchConversations()
+                    chatListItems = await authManager.getChatListItems()
+                }
             }
         }
     }
@@ -108,7 +128,7 @@ func sampleChatHistory(for chat: Chat) -> [Message] {
 }
 
 struct ChatRow: View {
-    let chat: Chat
+    let chat: ChatListItem
     
     var body: some View {
         HStack(spacing: 12) {
@@ -117,18 +137,9 @@ struct ChatRow: View {
                 .fill(chat.profileColor)
                 .frame(width: 50, height: 50)
                 .overlay(
-                    chat.profileImage.isEmpty ?
-                        AnyView(
-                            Text(chat.name.prefix(1))
-                                .font(.system(size: 18, weight: .bold, design: .default))
-                                .foregroundColor(.white)
-                        )
-                        :
-                        AnyView(
-                            Image(systemName: chat.profileImage)
-                                .foregroundColor(.white)
-                                .font(.title3)
-                        )
+                    Text(chat.name.prefix(1))
+                        .font(.system(size: 18, weight: .bold, design: .default))
+                        .foregroundColor(.white)
                 )
             
             VStack(alignment: .leading, spacing: 4) {
@@ -144,7 +155,7 @@ struct ChatRow: View {
                         .foregroundColor(.gray)
                 }
                 
-                Text(chat.lastMessage)
+                Text(chat.lastMessageText)
                     .font(.system(size: 14, weight: .regular, design: .default))
                     .foregroundColor(.gray)
                     .lineLimit(1)
@@ -160,21 +171,7 @@ struct ChatRow: View {
     }
 }
 
-struct Chat: Hashable, Identifiable {
-    let id = UUID()
-    let name: String
-    let lastMessage: String
-    let lastMessageTime: String
-    let profileColor: Color
-    let profileImage: String
-    let isActive: Bool
-}
 
-let sampleChats = [
-    Chat(name: "Harrison Lin", lastMessage: "See you in 30 min", lastMessageTime: "12:03", profileColor: .blue, profileImage: "", isActive: true),
-    Chat(name: "Paul Xu", lastMessage: "Great game today!", lastMessageTime: "11:45", profileColor: .green, profileImage: "", isActive: false),
-    Chat(name: "Nick Zhang", lastMessage: "Event details updated", lastMessageTime: "10:30", profileColor: .gray, profileImage: "person.fill", isActive: false)
-]
 
 #Preview {
     MessagesView(selectedTab: .constant(0))

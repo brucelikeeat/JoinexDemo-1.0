@@ -232,12 +232,51 @@ struct EventDetailView: View {
                         .padding(.horizontal, 20)
                         .padding(.top, 16)
                         
-                        // Join/Leave Button
-                        AnimatedButton(
-                            title: isJoined ? "Event Joined" : "Join Event",
-                            style: isJoined ? .success : .primary
-                        ) {
-                            isJoined.toggle()
+                        // Action Buttons
+                        VStack(spacing: 12) {
+                            // Join/Leave Button
+                            AnimatedButton(
+                                title: isJoined ? "Event Joined" : "Join Event",
+                                style: isJoined ? .success : .primary
+                            ) {
+                                Task {
+                                    if isJoined {
+                                        let success = await authManager.leaveEvent(id: event.id)
+                                        if success {
+                                            isJoined.toggle()
+                                        }
+                                    } else {
+                                        let success = await authManager.joinEvent(id: event.id)
+                                        if success {
+                                            isJoined.toggle()
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            // Message Host Button (only show if not the host)
+                            if event.hostId != authManager.currentUser?.id.uuidString {
+                                Button(action: {
+                                    Task {
+                                        if let conversation = await authManager.getOrCreateConversation(with: event.hostId) {
+                                            // Navigate to chat
+                                            print("Created conversation: \(conversation.id)")
+                                        }
+                                    }
+                                }) {
+                                    HStack {
+                                        Image(systemName: "message")
+                                            .font(.system(size: 14))
+                                        Text("Message Host")
+                                            .font(.system(size: 14, weight: .medium))
+                                    }
+                                    .foregroundColor(.royalBlue)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 12)
+                                    .background(Color.royalBlue.opacity(0.1))
+                                    .cornerRadius(8)
+                                }
+                            }
                         }
                         .padding(.horizontal, 20)
                         .padding(.top, 20)

@@ -8,10 +8,11 @@
 import SwiftUI
 
 struct ChatRoomView: View {
-    let chat: Chat
-    let chatHistory: [Message]
+    let chat: ChatListItem
+    @EnvironmentObject var authManager: AuthManager
     @Environment(\.dismiss) private var dismiss
     @State private var messageText = ""
+    @State private var isLoading = false
     
     var body: some View {
         NavigationStack {
@@ -35,22 +36,17 @@ struct ChatRoomView: View {
                                 .fill(chat.profileColor)
                                 .frame(width: 40, height: 40)
                                 .overlay(
-                                    chat.profileImage.isEmpty ?
-                                        AnyView(Text(chat.name.prefix(1))
-                                            .font(.system(size: 16, weight: .bold, design: .default))
-                                            .foregroundColor(.white))
-                                        :
-                                        AnyView(Image(systemName: chat.profileImage)
-                                            .foregroundColor(.white)
-                                            .font(.title3))
+                                    Text(chat.name.prefix(1))
+                                        .font(.system(size: 16, weight: .bold, design: .default))
+                                        .foregroundColor(.white)
                                 )
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(chat.name)
                                     .font(.system(size: 16, weight: .medium, design: .default))
                                     .foregroundColor(.black)
-                                Text(chat.isActive ? "Active now" : "Offline")
+                                Text("Online")
                                     .font(.system(size: 12, weight: .regular, design: .default))
-                                    .foregroundColor(chat.isActive ? .green : .gray)
+                                    .foregroundColor(.green)
                             }
                         }
                         Spacer()
@@ -73,14 +69,32 @@ struct ChatRoomView: View {
                     // Messages
                     ScrollView {
                         LazyVStack(spacing: 12) {
-                            ForEach(chatHistory) { msg in
-                                MessageBubble(
-                                    text: msg.text,
-                                    isFromUser: msg.isFromUser,
-                                    time: msg.time,
-                                    userInitial: msg.isFromUser ? "BL" : String(chat.name.prefix(1)),
-                                    userColor: msg.isFromUser ? Color.green : chat.profileColor
-                                )
+                            if authManager.conversationMessages.isEmpty {
+                                VStack(spacing: 16) {
+                                    Image(systemName: "message")
+                                        .font(.system(size: 48))
+                                        .foregroundColor(.gray)
+                                    Text("No messages yet")
+                                        .font(.system(size: 18, weight: .medium))
+                                        .foregroundColor(.gray)
+                                    Text("Start the conversation!")
+                                        .font(.system(size: 14))
+                                        .foregroundColor(.gray.opacity(0.7))
+                                }
+                                .padding(.top, 60)
+                            } else {
+                                ForEach(authManager.conversationMessages) { message in
+                                    MessageBubble(
+                                        text: message.content,
+                                        isFromUser: message.senderId == authManager.currentUser?.id.uuidString,
+                                        time: formatMessageTime(message.createdAt),
+                                        userInitial: message.senderId == authManager.currentUser?.id.uuidString ? 
+                                            (authManager.profile?.username.prefix(1) ?? "U") : 
+                                            chat.name.prefix(1),
+                                        userColor: message.senderId == authManager.currentUser?.id.uuidString ? 
+                                            .green : chat.profileColor
+                                    )
+                                }
                             }
                         }
                         .padding(.horizontal, 20)
@@ -111,11 +125,26 @@ struct ChatRoomView: View {
                             .padding()
                             .background(Color.gray.opacity(0.1))
                             .cornerRadius(20)
-                        Button(action: { messageText = "" }) {
-                            Image(systemName: "paperplane")
+                        Button(action: {
+                            if !messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                Task {
+                                    isLoading = true
+                                    let success = await authManager.sendMessage(
+                                        content: messageText.trimmingCharacters(in: .whitespacesAndNewlines),
+                                        to: chat.conversation.id
+                                    )
+                                    if success {
+                                        messageText = ""
+                                    }
+                                    isLoading = false
+                                }
+                            }
+                        }) {
+                            Image(systemName: isLoading ? "clock" : "paperplane")
                                 .font(.title3)
-                                .foregroundColor(.royalBlue)
+                                .foregroundColor(isLoading ? .gray : .royalBlue)
                         }
+                        .disabled(isLoading || messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
                     .padding(.horizontal, 20)
                     .padding(.vertical, 12)
@@ -129,8 +158,21 @@ struct ChatRoomView: View {
                 }
             }
             .navigationBarHidden(true)
+            .onAppear {
+                Task {
+                    await authManager.fetchMessages(for: chat.conversation.id)
+                }
+            }
         }
     }
+}
+
+// Helper function to format message time
+func formatMessageTime(_ date: Date) -> String {
+    let formatter = DateFormatter()
+    formatter.dateStyle = .none
+    formatter.timeStyle = .short
+    return formatter.string(from: date)
 }
 
 struct Message: Identifiable, Hashable {
@@ -190,11 +232,11 @@ struct MessageBubble: View {
 
 #Preview {
     ChatRoomView(
-        chat: Chat(name: "Harrison Lin", lastMessage: "See you in 30 min", lastMessageTime: "12:03", profileColor: .blue, profileImage: "person.fill", isActive: true),
-        chatHistory: [
-            Message(text: "See you in 30 min", isFromUser: false, time: "11:59", userInitial: nil, userColor: nil),
-            Message(text: "Prepared some donuts for you. Bet you'll love them 😋😋", isFromUser: true, time: "12:01", userInitial: "BL", userColor: .green),
-            Message(text: "Thats a lot 🎉🎉🎉", isFromUser: false, time: "12:03", userInitial: nil, userColor: nil)
-        ]
+        chat: ChatListItem(
+            conversation: Conversation(id: "preview", user1Id: "user1", user2Id: "user2", createdAt: Date(), updatedAt: Date()),
+            otherUser: Profile(id: "user2", username: "Harrison Lin", avatarUrl: nil, bio: nil),
+            lastMessage: Message(id: "msg1", conversationId: "preview", senderId: "user2", content: "See you in 30 min", messageType: .text, createdAt: Date(), updatedAt: Date())
+        )
     )
+    .environmentObject(AuthManager())
 } 
