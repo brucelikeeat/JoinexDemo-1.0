@@ -791,5 +791,214 @@ class AuthManager: ObservableObject {
         
         return chatItems
     }
+    
+    // MARK: - Advanced Search & Filtering
+    
+    // Search events with advanced filters
+    func searchEvents(
+        searchText: String = "",
+        sportType: String = "All Sports",
+        selectedDate: Date? = nil,
+        location: String = "",
+        radiusKm: Int = 40
+    ) async {
+        do {
+            var query = supabase
+                .from("events")
+                .select()
+                .eq("status", value: "active")
+            
+            // Text search filter
+            if !searchText.isEmpty {
+                query = query.or("title.ilike.%\(searchText)%,description.ilike.%\(searchText)%,location.ilike.%\(searchText)%")
+            }
+            
+            // Sport type filter
+            if sportType != "All Sports" {
+                query = query.eq("sport_type", value: sportType)
+            }
+            
+            // Date filter
+            if let selectedDate = selectedDate {
+                let calendar = Calendar.current
+                let startOfDay = calendar.startOfDay(for: selectedDate)
+                let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay)!
+                
+                let formatter = ISO8601DateFormatter()
+                formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+                
+                let startDateString = formatter.string(from: startOfDay)
+                let endDateString = formatter.string(from: endOfDay)
+                
+                query = query.gte("date_time", value: startDateString)
+                query = query.lt("date_time", value: endDateString)
+            }
+            
+            // Location-based filtering (if location is provided)
+            if !location.isEmpty {
+                // For now, we'll filter by location text
+                // In a real app, you'd use geolocation and distance calculations
+                query = query.ilike("location", value: "%\(location)%")
+            }
+            
+            // Order by date (closest events first)
+            query = query.order("date_time", ascending: true)
+            
+            let events: [Event] = try await query.execute().value
+            self.userEvents = events
+            
+        } catch {
+            print("Error searching events: \(error)")
+        }
+    }
+    
+    // Get events by sport type
+    func getEventsBySport(_ sportType: String) async {
+        if sportType == "All Sports" {
+            await fetchEvents()
+        } else {
+            do {
+                let events: [Event] = try await supabase
+                    .from("events")
+                    .select()
+                    .eq("status", value: "active")
+                    .eq("sport_type", value: sportType)
+                    .order("date_time", ascending: true)
+                    .execute()
+                    .value
+                
+                self.userEvents = events
+            } catch {
+                print("Error fetching events by sport: \(error)")
+            }
+        }
+    }
+    
+    // Get events by date range
+    func getEventsByDate(_ date: Date) async {
+        let calendar = Calendar.current
+        let startOfDay = calendar.startOfDay(for: date)
+        let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay)!
+        
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        
+        let startDateString = formatter.string(from: startOfDay)
+        let endDateString = formatter.string(from: endOfDay)
+        
+        do {
+            let events: [Event] = try await supabase
+                .from("events")
+                .select()
+                .eq("status", value: "active")
+                .gte("date_time", value: startDateString)
+                .lt("date_time", value: endDateString)
+                .order("date_time", ascending: true)
+                .execute()
+                .value
+            
+            self.userEvents = events
+        } catch {
+            print("Error fetching events by date: \(error)")
+        }
+    }
+    
+    // Get events by location
+    func getEventsByLocation(_ location: String, radiusKm: Int = 40) async {
+        do {
+            // For now, we'll filter by location text
+            // In a real implementation, you'd use geolocation coordinates
+            let events: [Event] = try await supabase
+                .from("events")
+                .select()
+                .eq("status", value: "active")
+                .ilike("location", value: "%\(location)%")
+                .order("date_time", ascending: true)
+                .execute()
+                .value
+            
+            self.userEvents = events
+        } catch {
+            print("Error fetching events by location: \(error)")
+        }
+    }
+    
+    // Real-time search with debouncing
+    func performSearch(searchText: String) async {
+        if searchText.isEmpty {
+            await fetchEvents()
+        } else {
+            do {
+                let events: [Event] = try await supabase
+                    .from("events")
+                    .select()
+                    .eq("status", value: "active")
+                    .or("title.ilike.%\(searchText)%,description.ilike.%\(searchText)%,location.ilike.%\(searchText)%")
+                    .order("date_time", ascending: true)
+                    .execute()
+                    .value
+                
+                self.userEvents = events
+            } catch {
+                print("Error performing search: \(error)")
+            }
+        }
+    }
+    
+    // Apply all filters at once
+    func applyAllFilters(
+        searchText: String = "",
+        sportType: String = "All Sports",
+        selectedDate: Date? = nil,
+        location: String = "",
+        radiusKm: Int = 40
+    ) async {
+        do {
+            var query = supabase
+                .from("events")
+                .select()
+                .eq("status", value: "active")
+            
+            // Text search filter
+            if !searchText.isEmpty {
+                query = query.or("title.ilike.%\(searchText)%,description.ilike.%\(searchText)%,location.ilike.%\(searchText)%")
+            }
+            
+            // Sport type filter
+            if sportType != "All Sports" {
+                query = query.eq("sport_type", value: sportType)
+            }
+            
+            // Date filter
+            if let selectedDate = selectedDate {
+                let calendar = Calendar.current
+                let startOfDay = calendar.startOfDay(for: selectedDate)
+                let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay)!
+                
+                let formatter = ISO8601DateFormatter()
+                formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+                
+                let startDateString = formatter.string(from: startOfDay)
+                let endDateString = formatter.string(from: endOfDay)
+                
+                query = query.gte("date_time", value: startDateString)
+                query = query.lt("date_time", value: endDateString)
+            }
+            
+            // Location-based filtering
+            if !location.isEmpty {
+                query = query.ilike("location", value: "%\(location)%")
+            }
+            
+            // Order by date (closest events first)
+            query = query.order("date_time", ascending: true)
+            
+            let events: [Event] = try await query.execute().value
+            self.userEvents = events
+            
+        } catch {
+            print("Error applying filters: \(error)")
+        }
+    }
 }
  

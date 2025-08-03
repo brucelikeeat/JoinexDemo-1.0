@@ -20,6 +20,8 @@ struct ExploreView: View {
     @State private var locationText = "Surrey, British Columbia"
     @State private var radius = 40
     @State private var showFilters = false
+    @State private var isSearching = false
+    @State private var searchDebounceTimer: Timer?
     
     let sports = ["All Sports", "Badminton", "Tennis", "Basketball", "Soccer", "Running"]
     let distances = [1, 5, 10, 25, 40, 50] // km
@@ -106,14 +108,52 @@ struct ExploreView: View {
                                 .accentColor(.royalBlue)
                                 .textFieldStyle(PlainTextFieldStyle())
                                 .tint(.gray.opacity(0.9))
+                                .onChange(of: searchText) { newValue in
+                                    // Cancel previous timer
+                                    searchDebounceTimer?.invalidate()
+                                    
+                                    // Create new timer for debounced search
+                                    searchDebounceTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false) { _ in
+                                        Task {
+                                            isSearching = true
+                                            let calendar = Calendar.current
+                                            let today = Date()
+                                            let selectedDate = calendar.date(byAdding: .day, value: selectedDateIndex, to: today) ?? today
+                                            await authManager.applyAllFilters(
+                                                searchText: newValue,
+                                                sportType: selectedSport,
+                                                selectedDate: selectedDateIndex == 0 ? nil : selectedDate,
+                                                location: locationText
+                                            )
+                                            isSearching = false
+                                        }
+                                    }
+                                }
                             
                             if !searchText.isEmpty {
                                 Button(action: {
                                     searchText = ""
+                                    Task {
+                                        let calendar = Calendar.current
+                                        let today = Date()
+                                        let selectedDate = calendar.date(byAdding: .day, value: selectedDateIndex, to: today) ?? today
+                                        await authManager.applyAllFilters(
+                                            searchText: "",
+                                            sportType: selectedSport,
+                                            selectedDate: selectedDateIndex == 0 ? nil : selectedDate,
+                                            location: locationText
+                                        )
+                                    }
                                 }) {
                                     Image(systemName: "xmark.circle.fill")
                                         .foregroundColor(.gray)
                                 }
+                            }
+                            
+                            if isSearching {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                                    .foregroundColor(.gray)
                             }
                         }
                         .padding()
@@ -121,29 +161,50 @@ struct ExploreView: View {
                         .cornerRadius(12)
                         
                         // Filter Toggle Button
-                        Button(action: { 
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                showFilters.toggle()
+                        HStack {
+                            Button(action: { 
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                    showFilters.toggle()
+                                }
+                            }) {
+                                HStack {
+                                    Image(systemName: "line.3.horizontal.decrease.circle")
+                                        .foregroundColor(.royalBlue)
+                                    Text("Filters")
+                                        .font(.system(size: 16, weight: .medium))
+                                        .foregroundColor(.royalBlue)
+                                    Spacer()
+                                    Image(systemName: showFilters ? "chevron.up" : "chevron.down")
+                                        .foregroundColor(.royalBlue)
+                                        .font(.system(size: 14))
+                                }
+                                .padding()
+                                .background(Color.white)
+                                .cornerRadius(12)
+                                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.gray.opacity(0.2), lineWidth: 1))
                             }
-                        }) {
-                            HStack {
-                                Image(systemName: "line.3.horizontal.decrease.circle")
-                                    .foregroundColor(.royalBlue)
-                                Text("Filters")
-                                    .font(.system(size: 16, weight: .medium))
-                                    .foregroundColor(.royalBlue)
-                                Spacer()
-                                Image(systemName: showFilters ? "chevron.up" : "chevron.down")
-                                    .foregroundColor(.royalBlue)
-                                    .font(.system(size: 14))
+                            
+                            // Clear Filters Button
+                            if selectedSport != "All Sports" || selectedDateIndex != 0 || locationText != "Surrey, British Columbia" {
+                                Button(action: {
+                                    selectedSport = "All Sports"
+                                    selectedDateIndex = 0
+                                    locationText = "Surrey, British Columbia"
+                                    radius = 40
+                                    searchText = ""
+                                    Task {
+                                        await authManager.applyAllFilters()
+                                    }
+                                }) {
+                                    Text("Clear")
+                                        .font(.system(size: 14, weight: .medium))
+                                        .foregroundColor(.red)
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 8)
+                                        .background(Color.red.opacity(0.1))
+                                        .cornerRadius(8)
+                                }
                             }
-                            .padding()
-                            .background(Color.white)
-                            .cornerRadius(12)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                            )
                         }
                         
                         // Collapsible Filters
@@ -163,6 +224,17 @@ struct ExploreView: View {
                                                         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                                                             selectedSport = sport
                                                             scrollProxy.scrollTo(sport, anchor: .center)
+                                                        }
+                                                        Task {
+                                                            let calendar = Calendar.current
+                                                            let today = Date()
+                                                            let selectedDate = calendar.date(byAdding: .day, value: selectedDateIndex, to: today) ?? today
+                                                            await authManager.applyAllFilters(
+                                                                searchText: searchText,
+                                                                sportType: sport,
+                                                                selectedDate: selectedDateIndex == 0 ? nil : selectedDate,
+                                                                location: locationText
+                                                            )
                                                         }
                                                     }) {
                                                         Text(sport)
@@ -197,6 +269,17 @@ struct ExploreView: View {
                                                 withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                                                     selectedDateIndex = index
                                                 }
+                                                Task {
+                                                    let calendar = Calendar.current
+                                                    let today = Date()
+                                                    let selectedDate = calendar.date(byAdding: .day, value: index, to: today) ?? today
+                                                    await authManager.applyAllFilters(
+                                                        searchText: searchText,
+                                                        sportType: selectedSport,
+                                                        selectedDate: index == 0 ? nil : selectedDate,
+                                                        location: locationText
+                                                    )
+                                                }
                                             }) {
                                                 VStack(spacing: 4) {
                                                     Text(dateNumbers[index])
@@ -220,7 +303,9 @@ struct ExploreView: View {
                                 }
                                 
                                 // Location Filter
-                                Button(action: { showLocationSheet = true }) {
+                                Button(action: { 
+                                    showLocationSheet = true 
+                                }) {
                                     HStack(spacing: 8) {
                                         Image(systemName: "mappin.and.ellipse")
                                             .foregroundColor(.gray)
@@ -259,10 +344,25 @@ struct ExploreView: View {
                     // Events List
                     ScrollView {
                         LazyVStack(spacing: 16) {
-                            ForEach(authManager.userEvents.isEmpty ? sampleEvents : authManager.userEvents, id: \.id) { event in
-                                ExploreEventCard(event: event) {
-                                    selectedEvent = event
-                                    navigateToEventDetail = true
+                            if authManager.userEvents.isEmpty {
+                                VStack(spacing: 16) {
+                                    Image(systemName: "magnifyingglass")
+                                        .font(.system(size: 48))
+                                        .foregroundColor(.gray)
+                                    Text("No events found")
+                                        .font(.system(size: 18, weight: .medium))
+                                        .foregroundColor(.gray)
+                                    Text("Try adjusting your filters or search terms")
+                                        .font(.system(size: 14))
+                                        .foregroundColor(.gray.opacity(0.7))
+                                }
+                                .padding(.top, 60)
+                            } else {
+                                ForEach(authManager.userEvents, id: \.id) { event in
+                                    ExploreEventCard(event: event) {
+                                        selectedEvent = event
+                                        navigateToEventDetail = true
+                                    }
                                 }
                             }
                         }
@@ -285,6 +385,32 @@ struct ExploreView: View {
             .onAppear {
                 Task {
                     await authManager.fetchEvents()
+                }
+            }
+            .onChange(of: selectedSport) { newValue in
+                Task {
+                    let calendar = Calendar.current
+                    let today = Date()
+                    let selectedDate = calendar.date(byAdding: .day, value: selectedDateIndex, to: today) ?? today
+                    await authManager.applyAllFilters(
+                        searchText: searchText,
+                        sportType: newValue,
+                        selectedDate: selectedDateIndex == 0 ? nil : selectedDate,
+                        location: locationText
+                    )
+                }
+            }
+            .onChange(of: selectedDateIndex) { newValue in
+                let calendar = Calendar.current
+                let today = Date()
+                let selectedDate = calendar.date(byAdding: .day, value: newValue, to: today) ?? today
+                Task {
+                    await authManager.applyAllFilters(
+                        searchText: searchText,
+                        sportType: selectedSport,
+                        selectedDate: newValue == 0 ? nil : selectedDate,
+                        location: locationText
+                    )
                 }
             }
         }
@@ -441,6 +567,7 @@ struct ChangeLocationView: View {
     let distances: [Int]
     let onApply: () -> Void
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var authManager: AuthManager
     @State private var searchQuery = ""
     
     var body: some View {
@@ -552,6 +679,19 @@ struct ChangeLocationView: View {
             HStack {
                 Spacer()
                 Button(action: {
+                    locationText = searchQuery.isEmpty ? locationText : searchQuery
+                    Task {
+                        let calendar = Calendar.current
+                        let today = Date()
+                        let selectedDate = calendar.date(byAdding: .day, value: 0, to: today) ?? today
+                        await authManager.applyAllFilters(
+                            searchText: "",
+                            sportType: "All Sports",
+                            selectedDate: nil,
+                            location: locationText,
+                            radiusKm: radius
+                        )
+                    }
                     onApply()
                 }) {
                     Text("Apply")
