@@ -18,7 +18,7 @@ Brief Description: Joinex connects sports enthusiasts by allowing users to disco
 ## Tech Stack
 - SwiftUI
 - Xcode 15+
-- Firebase (Authentication, Firestore, Storage)
+- Supabase (Authentication, Firestore, Storage)
 - MVVM Architecture
 - Git for version control
 
