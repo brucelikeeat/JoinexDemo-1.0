@@ -15,6 +15,9 @@ struct EditProfileView: View {
     @State private var isLoading = false
     @State private var showAlert = false
     @State private var alertMessage = ""
+    @State private var showImagePicker = false
+    @State private var pendingSource: ImageSourceType = .photoLibrary
+    @State private var pickedImage: UIImage? = nil
     
     var body: some View {
         NavigationStack {
@@ -50,18 +53,31 @@ struct EditProfileView: View {
                         
                         // Profile Picture
                         VStack(spacing: 12) {
-                            Circle()
-                                .fill(Color.royalBlue)
+                            if let urlString = authManager.profile?.avatar_url, let url = URL(string: urlString) {
+                                AsyncImage(url: url) { image in
+                                    image.resizable().scaledToFill()
+                                } placeholder: {
+                                    ProgressView()
+                                }
                                 .frame(width: 100, height: 100)
-                                .overlay(
-                                    Text("BL")
-                                        .font(.system(size: 36, weight: .bold, design: .default))
-                                        .foregroundColor(.white)
-                                )
+                                .clipShape(Circle())
+                            } else {
+                                Circle()
+                                    .fill(Color.royalBlue)
+                                    .frame(width: 100, height: 100)
+                                    .overlay(
+                                        Text(String(authManager.profile?.username.first ?? "U"))
+                                            .font(.system(size: 36, weight: .bold, design: .default))
+                                            .foregroundColor(.white)
+                                    )
+                            }
                             
-                            Text("Edit picture or avatar")
-                                .font(.system(size: 16, weight: .medium, design: .default))
-                                .foregroundColor(.royalBlue)
+                            HStack(spacing: 12) {
+                                Button("Choose Photo") { pendingSource = .photoLibrary; showImagePicker = true }
+                                    .foregroundColor(.royalBlue)
+                                Button("Take Photo") { pendingSource = .camera; showImagePicker = true }
+                                    .foregroundColor(.royalBlue)
+                            }
                         }
                         
                         // Form Fields
@@ -102,7 +118,34 @@ struct EditProfileView: View {
                             // Save Changes Button
                             AnimatedButton(title: isLoading ? "Saving..." : "Save Changes") {
                                 Task {
-                                    await saveProfile()
+                                    isLoading = true
+                                    
+                                    var avatarUrl: String? = nil
+                                    
+                                    // Upload image if picked
+                                    if let img = pickedImage {
+                                        avatarUrl = await authManager.uploadAvatar(image: img)
+                                        if avatarUrl != nil {
+                                            pickedImage = nil
+                                        }
+                                    }
+                                    
+                                    // Update profile
+                                    let success = await authManager.updateProfile(
+                                        username: username, 
+                                        avatar_url: avatarUrl, 
+                                        bio: bio.isEmpty ? nil : bio
+                                    )
+                                    
+                                    await MainActor.run {
+                                        isLoading = false
+                                        if success {
+                                            alertMessage = "Profile updated successfully!"
+                                        } else {
+                                            alertMessage = authManager.errorMessage ?? "Failed to update profile"
+                                        }
+                                        showAlert = true
+                                    }
                                 }
                             }
                             .disabled(isLoading)
@@ -115,6 +158,11 @@ struct EditProfileView: View {
                 }
             }
             .navigationBarHidden(true)
+            .sheet(isPresented: $showImagePicker) {
+                ImagePicker(sourceType: pendingSource) { image in
+                    pickedImage = image
+                }
+            }
             .onAppear {
                 loadProfileData()
             }

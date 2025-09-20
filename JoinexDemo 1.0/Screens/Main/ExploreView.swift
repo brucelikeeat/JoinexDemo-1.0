@@ -11,26 +11,75 @@ struct ExploreView: View {
     @Binding var selectedTab: Int
     @EnvironmentObject var authManager: AuthManager
     @State private var searchText = ""
-    @State private var selectedSport = "All Sports"
     @State private var navigateToEventDetail = false
     @State private var selectedEvent: Event? = nil
-    @State private var selectedDateIndex = 0
     @State private var selectedDistance = 10
     @State private var showLocationSheet = false
+    @State private var showSportSheet = false
     @State private var locationText = "Surrey, British Columbia"
     @State private var radius = 40
     @State private var showFilters = false
     @State private var isSearching = false
+    @State private var isFiltering = false
     @State private var searchDebounceTimer: Timer?
     
-    let sports = ["All Sports", "Badminton", "Tennis", "Basketball", "Soccer", "Running"]
+    // Filter Services
+    @StateObject private var sportFilterService = SportFilterService()
+    @StateObject private var dateFilterService = DateFilterService()
+    @StateObject private var locationFilterService = LocationFilterService()
+    @StateObject private var realTimeSearchService = RealTimeSearchService()
+    
+    // Updated comprehensive sports list
+    let sports = [
+        "All Sports",
+        "General (Casual/Any)",
+        "Badminton",
+        "Basketball",
+        "Soccer (Football)",
+        "Volleyball",
+        "Table Tennis",
+        "Tennis",
+        "Pickleball",
+        "Baseball",
+        "Softball",
+        "Running",
+        "Cycling",
+        "Swimming",
+        "Climbing (Indoor/Outdoor)",
+        "Skating (Ice/Roller)",
+        "Skiing/Snowboarding",
+        "Golf",
+        "Ultimate Frisbee",
+        "Flag Football",
+        "Martial Arts (e.g., Judo, Taekwondo)",
+        "Boxing",
+        "Wrestling",
+        "Dance Fitness (Zumba, Hip-Hop, etc.)",
+        "Yoga/Pilates",
+        "CrossFit/HIIT/Bootcamp",
+        "Esports/Gaming Tournaments",
+        "Dodgeball",
+        "Cricket",
+        "Rugby",
+        "Lacrosse",
+        "Hockey (Field/Ice)",
+        "Surfing",
+        "Archery",
+        "Rowing",
+        "Bouldering",
+        "Kendo/Fencing",
+        "Cheerleading",
+        "Horseback Riding"
+    ]
+    
     let distances = [1, 5, 10, 25, 40, 50] // km
+    // Date labels for next 7 days
     let dateLabels: [String] = {
         let calendar = Calendar.current
         let today = Date()
         let formatter = DateFormatter()
         formatter.dateFormat = "E"
-        return (0..<5).map { offset in
+        return (0..<7).map { offset in
             let date = calendar.date(byAdding: .day, value: offset, to: today) ?? today
             if offset == 0 { return "Today" }
             if offset == 1 { return "Tue" }
@@ -42,7 +91,7 @@ struct ExploreView: View {
         let today = Date()
         let formatter = DateFormatter()
         formatter.dateFormat = "dd"
-        return (0..<5).map { offset in
+        return (0..<7).map { offset in
             let date = calendar.date(byAdding: .day, value: offset, to: today) ?? today
             return formatter.string(from: date)
         }
@@ -82,50 +131,55 @@ struct ExploreView: View {
                             Button(action: {
                                 selectedTab = 4
                             }) {
-                                Circle()
-                                    .fill(Color.royalBlue)
-                                    .frame(width: 32, height: 32)
-                                    .overlay(
-                                        Text("BL")
-                                            .font(.system(size: 12, weight: .bold, design: .default))
-                                            .foregroundColor(.white)
-                                    )
+                                if let urlString = authManager.profile?.avatar_url, let url = URL(string: urlString) {
+                                    AsyncImage(url: url) { image in
+                                        image
+                                            .resizable()
+                                            .scaledToFill()
+                                            .frame(width: 32, height: 32)
+                                            .clipShape(Circle())
+                                    } placeholder: {
+                                        Circle()
+                                            .fill(Color.royalBlue)
+                                            .frame(width: 32, height: 32)
+                                            .overlay(
+                                                Text(String(authManager.profile?.username.prefix(1) ?? "U"))
+                                                    .font(.system(size: 12, weight: .bold, design: .default))
+                                                    .foregroundColor(.white)
+                                            )
+                                    }
+                                } else {
+                                    Circle()
+                                        .fill(Color.royalBlue)
+                                        .frame(width: 32, height: 32)
+                                        .overlay(
+                                            Text(String(authManager.profile?.username.prefix(1) ?? "U"))
+                                                .font(.system(size: 12, weight: .bold, design: .default))
+                                                .foregroundColor(.white)
+                                        )
+                                }
                             }
                         }
                     }
                     .padding(.horizontal, 20)
                     .padding(.top, 10)
                     
-                    // Search and Filter
+                    // Search and Filter Section
                     VStack(spacing: 16) {
-                        // Search bar
+                        // Search Bar
                         HStack {
                             Image(systemName: "magnifyingglass")
                                 .foregroundColor(.gray)
+                                .font(.system(size: 16))
                             
                             TextField("Search events...", text: $searchText)
-                                .foregroundColor(.black)
-                                .accentColor(.royalBlue)
-                                .textFieldStyle(PlainTextFieldStyle())
-                                .tint(.gray.opacity(0.9))
-                                .onChange(of: searchText) { newValue in
-                                    // Cancel previous timer
+                                .font(.system(size: 16, weight: .regular, design: .default))
+                                .onChange(of: searchText) { _, newValue in
+                                    // Debounce search
                                     searchDebounceTimer?.invalidate()
-                                    
-                                    // Create new timer for debounced search
                                     searchDebounceTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false) { _ in
                                         Task {
-                                            isSearching = true
-                                            let calendar = Calendar.current
-                                            let today = Date()
-                                            let selectedDate = calendar.date(byAdding: .day, value: selectedDateIndex, to: today) ?? today
-                                            await authManager.applyAllFilters(
-                                                searchText: newValue,
-                                                sportType: selectedSport,
-                                                selectedDate: selectedDateIndex == 0 ? nil : selectedDate,
-                                                location: locationText
-                                            )
-                                            isSearching = false
+                                            await performSearch()
                                         }
                                     }
                                 }
@@ -134,286 +188,373 @@ struct ExploreView: View {
                                 Button(action: {
                                     searchText = ""
                                     Task {
-                                        let calendar = Calendar.current
-                                        let today = Date()
-                                        let selectedDate = calendar.date(byAdding: .day, value: selectedDateIndex, to: today) ?? today
-                                        await authManager.applyAllFilters(
-                                            searchText: "",
-                                            sportType: selectedSport,
-                                            selectedDate: selectedDateIndex == 0 ? nil : selectedDate,
-                                            location: locationText
-                                        )
+                                        await authManager.fetchEvents()
                                     }
                                 }) {
                                     Image(systemName: "xmark.circle.fill")
                                         .foregroundColor(.gray)
+                                        .font(.system(size: 16))
                                 }
                             }
-                            
-                            if isSearching {
-                                ProgressView()
-                                    .scaleEffect(0.8)
-                                    .foregroundColor(.gray)
-                            }
                         }
-                        .padding()
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
                         .background(Color.gray.opacity(0.1))
                         .cornerRadius(12)
                         
-                        // Filter Toggle Button
-                        HStack {
-                            Button(action: { 
-                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        // Filter Button and Dropdown
+                        VStack(spacing: 0) {
+                            // Filter Button
+                            Button(action: {
+                                withAnimation(.easeInOut(duration: 0.3)) {
                                     showFilters.toggle()
                                 }
                             }) {
                                 HStack {
                                     Image(systemName: "line.3.horizontal.decrease.circle")
                                         .foregroundColor(.royalBlue)
+                                        .font(.system(size: 16))
+                                    
                                     Text("Filters")
-                                        .font(.system(size: 16, weight: .medium))
+                                        .font(.system(size: 16, weight: .medium, design: .default))
                                         .foregroundColor(.royalBlue)
+                                    
                                     Spacer()
+                                    
+                                                       // Active filters indicator
+                   HStack(spacing: 4) {
+                       if sportFilterService.selectedSport != "All Sports" {
+                           Circle()
+                               .fill(Color.royalBlue)
+                               .frame(width: 6, height: 6)
+                       }
+                       if dateFilterService.isDateFilterActive {
+                           Circle()
+                               .fill(Color.royalBlue)
+                               .frame(width: 6, height: 6)
+                       }
+                       if locationText != "Surrey, British Columbia" {
+                           Circle()
+                               .fill(Color.royalBlue)
+                               .frame(width: 6, height: 6)
+                       }
+                   }
+                                    
                                     Image(systemName: showFilters ? "chevron.up" : "chevron.down")
                                         .foregroundColor(.royalBlue)
-                                        .font(.system(size: 14))
+                                        .font(.system(size: 12))
+                                        .rotationEffect(.degrees(showFilters ? 180 : 0))
                                 }
-                                .padding()
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 12)
                                 .background(Color.white)
                                 .cornerRadius(12)
-                                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.gray.opacity(0.2), lineWidth: 1))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                                )
                             }
                             
-                            // Clear Filters Button
-                            if selectedSport != "All Sports" || selectedDateIndex != 0 || locationText != "Surrey, British Columbia" {
-                                Button(action: {
-                                    selectedSport = "All Sports"
-                                    selectedDateIndex = 0
-                                    locationText = "Surrey, British Columbia"
-                                    radius = 40
-                                    searchText = ""
-                                    Task {
-                                        await authManager.applyAllFilters()
+                            // Filter Dropdown
+                            if showFilters {
+                                VStack(spacing: 16) {
+                                    // Sport Filter
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        Text("Sport Type")
+                                            .font(.system(size: 14, weight: .medium, design: .default))
+                                            .foregroundColor(.black)
+                                        
+                                        Button(action: {
+                                            showSportSheet = true
+                                        }) {
+                                            HStack {
+                                                Image(systemName: "sportscourt")
+                                                    .foregroundColor(.royalBlue)
+                                                    .font(.system(size: 14))
+                                                
+                                                VStack(alignment: .leading, spacing: 2) {
+                                                    Text(sportFilterService.selectedSport)
+                                                        .font(.system(size: 14, weight: .medium, design: .default))
+                                                        .foregroundColor(.black)
+                                                        .lineLimit(1)
+                                                }
+                                                
+                                                Spacer()
+                                                
+                                                Image(systemName: "chevron.right")
+                                                    .foregroundColor(.gray)
+                                                    .font(.system(size: 12))
+                                            }
+                                            .padding(.horizontal, 12)
+                                            .padding(.vertical, 8)
+                                            .background(Color.gray.opacity(0.1))
+                                            .cornerRadius(8)
+                                        }
+                                        .buttonStyle(PlainButtonStyle())
                                     }
-                                }) {
-                                    Text("Clear")
-                                        .font(.system(size: 14, weight: .medium))
-                                        .foregroundColor(.red)
-                                        .padding(.horizontal, 12)
-                                        .padding(.vertical, 8)
-                                        .background(Color.red.opacity(0.1))
-                                        .cornerRadius(8)
-                                }
-                            }
-                        }
-                        
-                        // Collapsible Filters
-                        if showFilters {
-                            VStack(spacing: 12) {
-                                // Sport Type Filter
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text("Sport Type")
-                                        .font(.system(size: 14, weight: .medium))
-                                        .foregroundColor(.black)
                                     
-                                    ScrollViewReader { scrollProxy in
+                                    // Date Filter
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        Text("Date")
+                                            .font(.system(size: 14, weight: .medium, design: .default))
+                                            .foregroundColor(.black)
+                                        
                                         ScrollView(.horizontal, showsIndicators: false) {
                                             HStack(spacing: 12) {
-                                                ForEach(sports, id: \.self) { sport in
-                                                    Button(action: {
-                                                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                                            selectedSport = sport
-                                                            scrollProxy.scrollTo(sport, anchor: .center)
+                                                ForEach(0..<5, id: \.self) { index in
+                                                                            Button(action: {
+                            dateFilterService.selectDateOption(index)
+                            Task {
+                                await filterByDate(index)
+                            }
+                        }) {
+                                                        VStack(spacing: 4) {
+                                                            Text(dateLabels[index])
+                                                                .font(.system(size: 12, weight: .medium, design: .default))
+                                                                .foregroundColor(dateFilterService.selectedDateIndex == index ? .royalBlue : .gray)
+                                                            
+                                                            Text(dateNumbers[index])
+                                                                .font(.system(size: 16, weight: .bold, design: .default))
+                                                                .foregroundColor(dateFilterService.selectedDateIndex == index ? .royalBlue : .black)
                                                         }
-                                                        Task {
-                                                            let calendar = Calendar.current
-                                                            let today = Date()
-                                                            let selectedDate = calendar.date(byAdding: .day, value: selectedDateIndex, to: today) ?? today
-                                                            await authManager.applyAllFilters(
-                                                                searchText: searchText,
-                                                                sportType: sport,
-                                                                selectedDate: selectedDateIndex == 0 ? nil : selectedDate,
-                                                                location: locationText
-                                                            )
-                                                        }
-                                                    }) {
-                                                        Text(sport)
-                                                            .font(.system(size: 14, weight: .medium))
-                                                            .foregroundColor(selectedSport == sport ? .white : .royalBlue)
-                                                            .padding(.horizontal, 16)
-                                                            .padding(.vertical, 8)
-                                                            .background(selectedSport == sport ? Color.royalBlue : Color.clear)
-                                                            .overlay(
-                                                                RoundedRectangle(cornerRadius: 20)
-                                                                    .stroke(Color.royalBlue, lineWidth: selectedSport == sport ? 0 : 1)
-                                                            )
-                                                            .cornerRadius(20)
+                                                        .padding(.vertical, 8)
+                                                        .padding(.horizontal, 12)
+                                                        .background(
+                                                            RoundedRectangle(cornerRadius: 8)
+                                                                .fill(dateFilterService.selectedDateIndex == index ? Color.royalBlue.opacity(0.1) : Color.clear)
+                                                        )
                                                     }
-                                                    .id(sport)
+                                                    .buttonStyle(PlainButtonStyle())
                                                 }
                                             }
                                             .padding(.horizontal, 4)
                                         }
                                     }
-                                }
-                                
-                                // Date Filter
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text("Date")
-                                        .font(.system(size: 14, weight: .medium))
-                                        .foregroundColor(.black)
                                     
-                                    HStack(spacing: 8) {
-                                        ForEach(0..<5, id: \.self) { index in
-                                            Button(action: {
-                                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                                    selectedDateIndex = index
+                                    // Location Filter
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        Text("Location")
+                                            .font(.system(size: 14, weight: .medium, design: .default))
+                                            .foregroundColor(.black)
+                                        
+                                        Button(action: {
+                                            showLocationSheet = true
+                                        }) {
+                                            HStack {
+                                                Image(systemName: "location")
+                                                    .foregroundColor(.royalBlue)
+                                                    .font(.system(size: 14))
+                                                
+                                                VStack(alignment: .leading, spacing: 2) {
+                                                    Text(locationText)
+                                                        .font(.system(size: 14, weight: .medium, design: .default))
+                                                        .foregroundColor(.black)
+                                                        .lineLimit(1)
+                                                    
+                                                    Text("Within \(radius) km")
+                                                        .font(.system(size: 12, weight: .regular, design: .default))
+                                                        .foregroundColor(.gray)
                                                 }
-                                                Task {
-                                                    let calendar = Calendar.current
-                                                    let today = Date()
-                                                    let selectedDate = calendar.date(byAdding: .day, value: index, to: today) ?? today
-                                                    await authManager.applyAllFilters(
-                                                        searchText: searchText,
-                                                        sportType: selectedSport,
-                                                        selectedDate: index == 0 ? nil : selectedDate,
-                                                        location: locationText
-                                                    )
-                                                }
-                                            }) {
-                                                VStack(spacing: 4) {
-                                                    Text(dateNumbers[index])
-                                                        .font(.system(size: 16, weight: .bold))
-                                                        .foregroundColor(selectedDateIndex == index ? .white : .black)
-                                                    Text(dateLabels[index])
-                                                        .font(.system(size: 12, weight: .regular))
-                                                        .foregroundColor(selectedDateIndex == index ? .white : .gray)
-                                                }
-                                                .padding(.vertical, 8)
-                                                .padding(.horizontal, 12)
-                                                .background(selectedDateIndex == index ? Color.royalBlue : Color.clear)
-                                                .overlay(
-                                                    RoundedRectangle(cornerRadius: 8)
-                                                        .stroke(Color.gray.opacity(0.3), lineWidth: selectedDateIndex == index ? 0 : 1)
-                                                )
-                                                .cornerRadius(8)
+                                                
+                                                Spacer()
+                                                
+                                                Image(systemName: "chevron.right")
+                                                    .foregroundColor(.gray)
+                                                    .font(.system(size: 12))
                                             }
+                                            .padding(.horizontal, 12)
+                                            .padding(.vertical, 8)
+                                            .background(Color.gray.opacity(0.1))
+                                            .cornerRadius(8)
+                                        }
+                                        .buttonStyle(PlainButtonStyle())
+                                    }
+                                    
+                                    // Clear Filters Button
+                                    if sportFilterService.selectedSport != "All Sports" || dateFilterService.selectedDateIndex != 0 || locationText != "Surrey, British Columbia" {
+                                        Button(action: {
+                                            sportFilterService.clearSportFilter()
+                                            dateFilterService.clearDateFilter()
+                                            locationText = "Surrey, British Columbia"
+                                            radius = 40
+                                            Task {
+                                                await authManager.fetchEvents()
+                                            }
+                                        }) {
+                                            Text("Clear All Filters")
+                                                .font(.system(size: 14, weight: .medium, design: .default))
+                                                .foregroundColor(.red)
+                                                .padding(.horizontal, 16)
+                                                .padding(.vertical, 8)
+                                                .background(Color.red.opacity(0.1))
+                                                .cornerRadius(8)
                                         }
                                     }
                                 }
-                                
-                                // Location Filter
-                                Button(action: { 
-                                    showLocationSheet = true 
-                                }) {
-                                    HStack(spacing: 8) {
-                                        Image(systemName: "mappin.and.ellipse")
-                                            .foregroundColor(.gray)
-                                        VStack(alignment: .leading, spacing: 2) {
-                                            Text("Location")
-                                                .font(.system(size: 13, weight: .regular))
-                                                .foregroundColor(.gray)
-                                            Text(locationText)
-                                                .font(.system(size: 16, weight: .medium))
-                                                .foregroundColor(.black)
-                                        }
-                                        Spacer()
-                                        Text("• Within \(radius) kilometers")
-                                            .font(.system(size: 13, weight: .regular))
-                                            .foregroundColor(.gray)
-                                    }
-                                    .padding()
-                                    .background(Color.white)
-                                    .cornerRadius(12)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                                    )
-                                }
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 16)
+                                .background(Color.white)
+                                .cornerRadius(12)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                                )
+                                .transition(.asymmetric(
+                                    insertion: .scale(scale: 0.95).combined(with: .opacity),
+                                    removal: .scale(scale: 0.95).combined(with: .opacity)
+                                ))
                             }
-                            .padding(.horizontal, 16)
-                            .transition(.asymmetric(
-                                insertion: .scale(scale: 0.95).combined(with: .opacity),
-                                removal: .scale(scale: 0.95).combined(with: .opacity)
-                            ))
                         }
                     }
                     .padding(.horizontal, 20)
-                    .padding(.top, 16)
+                    .padding(.top, 20)
                     
                     // Events List
-                    ScrollView {
-                        LazyVStack(spacing: 16) {
-                            if authManager.userEvents.isEmpty {
-                                VStack(spacing: 16) {
-                                    Image(systemName: "magnifyingglass")
-                                        .font(.system(size: 48))
-                                        .foregroundColor(.gray)
-                                    Text("No events found")
-                                        .font(.system(size: 18, weight: .medium))
-                                        .foregroundColor(.gray)
-                                    Text("Try adjusting your filters or search terms")
-                                        .font(.system(size: 14))
-                                        .foregroundColor(.gray.opacity(0.7))
-                                }
-                                .padding(.top, 60)
-                            } else {
-                                ForEach(authManager.userEvents, id: \.id) { event in
+                    if isFiltering {
+                        Spacer()
+                        ProgressView("Filtering events...")
+                            .foregroundColor(.gray)
+                        Spacer()
+                    } else if authManager.userEvents.isEmpty {
+                        Spacer()
+                        VStack(spacing: 16) {
+                            Image(systemName: "sportscourt")
+                                .font(.system(size: 48))
+                                .foregroundColor(.gray)
+                            
+                            Text("No events found")
+                                .font(.system(size: 18, weight: .medium, design: .default))
+                                .foregroundColor(.gray)
+                            
+                            Text("Try adjusting your filters or search terms")
+                                .font(.system(size: 14, weight: .regular, design: .default))
+                                .foregroundColor(.gray.opacity(0.7))
+                                .multilineTextAlignment(.center)
+                        }
+                        Spacer()
+                    } else {
+                        ScrollView {
+                            LazyVGrid(columns: [
+                                GridItem(.flexible())
+                            ], spacing: 16) {
+                                ForEach(authManager.userEvents) { event in
                                     ExploreEventCard(event: event) {
                                         selectedEvent = event
                                         navigateToEventDetail = true
                                     }
                                 }
                             }
+                            .padding(.horizontal, 20)
+                            .padding(.top, 20)
                         }
-                        .padding(.horizontal, 20)
-                        .padding(.top, 20)
                     }
                 }
             }
-            .sheet(isPresented: $showLocationSheet) {
-                ChangeLocationView(locationText: $locationText, radius: $radius, distances: distances) {
-                    showLocationSheet = false
-                }
-            }
-            .navigationDestination(isPresented: $navigateToEventDetail) {
-                if let selectedEvent = selectedEvent {
-                    EventDetailView(event: selectedEvent)
-                }
-            }
-            .navigationBarHidden(true)
-            .onAppear {
+        }
+        .sheet(isPresented: $showLocationSheet) {
+            LocationSearchView(locationText: $locationText, radius: $radius, distances: distances) {
                 Task {
-                    await authManager.fetchEvents()
-                }
-            }
-            .onChange(of: selectedSport) { newValue in
-                Task {
-                    let calendar = Calendar.current
-                    let today = Date()
-                    let selectedDate = calendar.date(byAdding: .day, value: selectedDateIndex, to: today) ?? today
-                    await authManager.applyAllFilters(
-                        searchText: searchText,
-                        sportType: newValue,
-                        selectedDate: selectedDateIndex == 0 ? nil : selectedDate,
-                        location: locationText
-                    )
-                }
-            }
-            .onChange(of: selectedDateIndex) { newValue in
-                let calendar = Calendar.current
-                let today = Date()
-                let selectedDate = calendar.date(byAdding: .day, value: newValue, to: today) ?? today
-                Task {
-                    await authManager.applyAllFilters(
-                        searchText: searchText,
-                        sportType: selectedSport,
-                        selectedDate: newValue == 0 ? nil : selectedDate,
-                        location: locationText
-                    )
+                    await filterByLocation(locationText, radius: radius)
                 }
             }
         }
+        .sheet(isPresented: $showSportSheet) {
+            SportSearchView(selectedSport: $sportFilterService.selectedSport) {
+                Task {
+                    await filterBySport(sportFilterService.selectedSport)
+                }
+            }
+        }
+        .navigationDestination(isPresented: $navigateToEventDetail) {
+            if let selectedEvent = selectedEvent {
+                EventDetailView(event: selectedEvent)
+            }
+        }
+        .navigationBarHidden(true)
+        .onAppear {
+            // Connect filter services to AuthManager
+            sportFilterService.setAuthManager(authManager)
+            dateFilterService.setAuthManager(authManager)
+            locationFilterService.setAuthManager(authManager)
+            
+            Task {
+                await authManager.fetchEvents()
+            }
+        }
+    }
+    
+    // MARK: - Helper Functions
+    
+    private func performSearch() async {
+        isSearching = true
+        
+        // Create search filters
+        let filters = SearchFilters(
+            sportType: sportFilterService.selectedSport,
+            date: dateFilterService.selectedDateIndex == 0 ? nil : getDateForIndex(dateFilterService.selectedDateIndex),
+            location: locationText,
+            radius: radius
+        )
+        
+        if searchText.isEmpty {
+            await authManager.searchWithAllFilters(searchText: "", filters: filters)
+        } else {
+            await authManager.performLiveSearch(searchText: searchText, filters: filters)
+        }
+        
+        isSearching = false
+    }
+    
+    private func filterByDate(_ index: Int) async {
+        isFiltering = true
+        
+        let filters = SearchFilters(
+            sportType: sportFilterService.selectedSport,
+            date: index == 0 ? nil : getDateForIndex(index),
+            location: locationText,
+            radius: radius
+        )
+        
+        await authManager.searchWithAllFilters(searchText: searchText, filters: filters)
+        
+        isFiltering = false
+    }
+    
+    private func filterBySport(_ sportType: String) async {
+        isFiltering = true
+        
+        let filters = SearchFilters(
+            sportType: sportType,
+            date: dateFilterService.selectedDateIndex == 0 ? nil : getDateForIndex(dateFilterService.selectedDateIndex),
+            location: locationText,
+            radius: radius
+        )
+        
+        await authManager.searchWithAllFilters(searchText: searchText, filters: filters)
+        
+        isFiltering = false
+    }
+    
+    private func filterByLocation(_ location: String, radius: Int) async {
+        isFiltering = true
+        
+        let filters = SearchFilters(
+            sportType: sportFilterService.selectedSport,
+            date: dateFilterService.selectedDateIndex == 0 ? nil : getDateForIndex(dateFilterService.selectedDateIndex),
+            location: location,
+            radius: radius
+        )
+        
+        await authManager.searchWithAllFilters(searchText: searchText, filters: filters)
+        
+        isFiltering = false
+    }
+    
+    // Helper function to get date for index
+    private func getDateForIndex(_ index: Int) -> Date {
+        let calendar = Calendar.current
+        let today = Date()
+        return calendar.date(byAdding: .day, value: index, to: today) ?? today
     }
 }
 
@@ -461,6 +602,18 @@ struct ExploreEventCard: View {
                         Text(event.formattedDateTime)
                             .font(.system(size: 14, weight: .regular, design: .default))
                             .foregroundColor(.gray)
+                        
+                        Spacer()
+                        
+                        HStack(spacing: 4) {
+                            Image(systemName: "clock")
+                                .foregroundColor(.royalBlue)
+                                .font(.caption)
+                            
+                            Text("\(event.durationMinutes) min")
+                                .font(.system(size: 14, weight: .medium, design: .default))
+                                .foregroundColor(.royalBlue)
+                        }
                     }
                     
                     HStack {
@@ -471,6 +624,7 @@ struct ExploreEventCard: View {
                         Text(event.location)
                             .font(.system(size: 14, weight: .regular, design: .default))
                             .foregroundColor(.gray)
+                            .lineLimit(1)
                     }
                     
                     HStack {
@@ -478,13 +632,13 @@ struct ExploreEventCard: View {
                             .foregroundColor(.royalBlue)
                             .font(.caption)
                         
-                        Text("\(event.currentPlayers) / \(event.maxPlayers) players")
+                        Text("\(event.currentPlayers)/\(event.maxPlayers) players")
                             .font(.system(size: 14, weight: .regular, design: .default))
                             .foregroundColor(.gray)
                         
                         Spacer()
                         
-                        Text(event.skillLevelText)
+                        Text(event.sportType)
                             .font(.system(size: 12, weight: .medium, design: .default))
                             .foregroundColor(.royalBlue)
                             .padding(.horizontal, 8)
@@ -493,11 +647,12 @@ struct ExploreEventCard: View {
                             .cornerRadius(8)
                     }
                 }
+                .padding(.horizontal, 12)
+                .padding(.bottom, 12)
             }
-            .padding()
             .background(Color.white)
-            .cornerRadius(16)
-
+            .cornerRadius(12)
+            .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
         }
         .buttonStyle(PlainButtonStyle())
     }
@@ -591,14 +746,35 @@ struct ChangeLocationView: View {
             Divider()
             // Search field
             HStack {
-                                            TextField("Search by city, neighborhood or ZIP code.", text: $searchQuery)
-                                .foregroundColor(.black)
-                                .accentColor(.royalBlue)
-                                .tint(.gray.opacity(0.9))
-                    .padding(.vertical, 10)
-                    .padding(.horizontal, 8)
+                Image(systemName: "magnifyingglass")
+                    .foregroundColor(.gray)
+                    .font(.system(size: 16))
+                
+                TextField("Search by city, neighborhood or ZIP code.", text: $searchQuery)
+                    .font(.system(size: 16, weight: .regular, design: .default))
+                    .foregroundColor(.black)
+                    .accentColor(.royalBlue)
+                    .tint(.gray.opacity(0.9))
+                                         .onChange(of: searchQuery) { _, newValue in
+                        if newValue.isEmpty {
+                            locationText = searchQuery
+                        }
+                    }
+                
+                if !searchQuery.isEmpty {
+                    Button(action: { searchQuery = "" }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.gray)
+                            .font(.system(size: 16))
+                    }
+                }
             }
+            .padding(.vertical, 10)
+            .padding(.horizontal, 8)
+            .background(Color.gray.opacity(0.1))
+            .cornerRadius(12)
             .padding(.horizontal, 16)
+            .padding(.top, 12)
             // Location box
             VStack(alignment: .leading, spacing: 2) {
                 Text("Location")
@@ -681,16 +857,7 @@ struct ChangeLocationView: View {
                 Button(action: {
                     locationText = searchQuery.isEmpty ? locationText : searchQuery
                     Task {
-                        let calendar = Calendar.current
-                        let today = Date()
-                        let selectedDate = calendar.date(byAdding: .day, value: 0, to: today) ?? today
-                        await authManager.applyAllFilters(
-                            searchText: "",
-                            sportType: "All Sports",
-                            selectedDate: nil,
-                            location: locationText,
-                            radiusKm: radius
-                        )
+                        await authManager.filterByLocation(locationText, radiusKm: radius)
                     }
                     onApply()
                 }) {
@@ -715,4 +882,5 @@ struct ChangeLocationView: View {
     ExploreView(selectedTab: .constant(0))
         .environmentObject(AuthManager())
 } 
+ 
  

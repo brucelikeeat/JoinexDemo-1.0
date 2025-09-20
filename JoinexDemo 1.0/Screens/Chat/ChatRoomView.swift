@@ -7,12 +7,35 @@
 
 import SwiftUI
 
+struct MessageRow: View {
+    let message: ChatMessage
+    @ObservedObject var authManager: AuthManager
+    let chat: ChatListItem
+    
+    var body: some View {
+        let isFromUser = message.senderId == authManager.currentUser?.id.uuidString
+        let userInitial = isFromUser ?
+            String(authManager.profile?.username.prefix(1) ?? "U") :
+            String(chat.name.prefix(1))
+        let userColor = isFromUser ? Color.green : chat.profileColor
+        
+        MessageBubble(
+            text: message.content,
+            isFromUser: isFromUser,
+            time: formatMessageTime(message.createdAt),
+            userInitial: userInitial,
+            userColor: userColor
+        )
+    }
+}
+
 struct ChatRoomView: View {
     let chat: ChatListItem
     @EnvironmentObject var authManager: AuthManager
     @Environment(\.dismiss) private var dismiss
     @State private var messageText = ""
-    @State private var isLoading = false
+    @State private var isSending = false
+    @State private var showMoreOptions = false
     
     var body: some View {
         NavigationStack {
@@ -82,72 +105,133 @@ struct ChatRoomView: View {
                                         .foregroundColor(.gray.opacity(0.7))
                                 }
                                 .padding(.top, 60)
-                            } else {
-                                ForEach(authManager.conversationMessages) { message in
-                                    MessageBubble(
-                                        text: message.content,
-                                        isFromUser: message.senderId == authManager.currentUser?.id.uuidString,
-                                        time: formatMessageTime(message.createdAt),
-                                        userInitial: message.senderId == authManager.currentUser?.id.uuidString ? 
-                                            (authManager.profile?.username.prefix(1) ?? "U") : 
-                                            chat.name.prefix(1),
-                                        userColor: message.senderId == authManager.currentUser?.id.uuidString ? 
-                                            .green : chat.profileColor
-                                    )
+                                                            } else {
+                                                            ForEach(authManager.conversationMessages, id: \.id) { message in
+                            MessageRow(message: message, authManager: authManager, chat: chat)
+                        }
                                 }
-                            }
                         }
                         .padding(.horizontal, 20)
                         .padding(.top, 20)
                     }
-                    // Input bar (unchanged)
-                    HStack(spacing: 12) {
-                        Button(action: {}) {
-                            Image(systemName: "location")
-                                .font(.title3)
-                                .foregroundColor(.gray)
-                        }
-                        Button(action: {}) {
-                            Image(systemName: "face.smiling")
-                                .font(.title3)
-                                .foregroundColor(.gray)
-                        }
-                        Button(action: {}) {
-                            Image(systemName: "photo")
-                                .font(.title3)
-                                .foregroundColor(.gray)
-                        }
-                        TextField("Aa", text: $messageText)
-                            .foregroundColor(.black)
-                            .accentColor(.royalBlue)
-                            .tint(.gray.opacity(0.9))
-                            .textFieldStyle(PlainTextFieldStyle())
-                            .padding()
-                            .background(Color.gray.opacity(0.1))
-                            .cornerRadius(20)
-                        Button(action: {
-                            if !messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                Task {
-                                    isLoading = true
-                                    let success = await authManager.sendMessage(
-                                        content: messageText.trimmingCharacters(in: .whitespacesAndNewlines),
-                                        to: chat.conversation.id
-                                    )
-                                    if success {
-                                        messageText = ""
-                                    }
-                                    isLoading = false
+                    // Input bar with foldable menu
+                    VStack(spacing: 0) {
+                        // Main input bar
+                        HStack(spacing: 12) {
+                            // More options button (foldable menu trigger)
+                            Button(action: {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    showMoreOptions.toggle()
                                 }
+                            }) {
+                                Image(systemName: "plus.circle")
+                                    .font(.title2)
+                                    .foregroundColor(.gray)
                             }
-                        }) {
-                            Image(systemName: isLoading ? "clock" : "paperplane")
-                                .font(.title3)
-                                .foregroundColor(isLoading ? .gray : .royalBlue)
+                            
+                            // Text field (longer)
+                            TextField("Aa", text: $messageText)
+                                .foregroundColor(.black)
+                                .accentColor(.royalBlue)
+                                .tint(.gray.opacity(0.9))
+                                .textFieldStyle(PlainTextFieldStyle())
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 12)
+                                .background(Color.gray.opacity(0.1))
+                                .cornerRadius(20)
+                            
+                            // Send button
+                            Button(action: {
+                                if !messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                    Task {
+                                        isSending = true
+                                        let success = await authManager.sendMessage(
+                                            content: messageText.trimmingCharacters(in: .whitespacesAndNewlines),
+                                            to: chat.conversation.id
+                                        )
+                                        if success {
+                                            messageText = ""
+                                        }
+                                        isSending = false
+                                    }
+                                }
+                            }) {
+                                Image(systemName: isSending ? "clock" : "paperplane")
+                                    .font(.title2)
+                                    .foregroundColor(isSending ? .gray : .royalBlue)
+                            }
+                            .disabled(isSending || messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                         }
-                        .disabled(isLoading || messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 12)
+                        
+                        // Foldable options menu
+                        if showMoreOptions {
+                            HStack(spacing: 20) {
+                                Button(action: {
+                                    // Photo action
+                                    showMoreOptions = false
+                                }) {
+                                    VStack(spacing: 4) {
+                                        Image(systemName: "photo")
+                                            .font(.title2)
+                                            .foregroundColor(.royalBlue)
+                                        Text("Photo")
+                                            .font(.caption)
+                                            .foregroundColor(.gray)
+                                    }
+                                }
+                                
+                                Button(action: {
+                                    // Camera action
+                                    showMoreOptions = false
+                                }) {
+                                    VStack(spacing: 4) {
+                                        Image(systemName: "camera")
+                                            .font(.title2)
+                                            .foregroundColor(.royalBlue)
+                                        Text("Camera")
+                                            .font(.caption)
+                                            .foregroundColor(.gray)
+                                    }
+                                }
+                                
+                                Button(action: {
+                                    // Location action
+                                    showMoreOptions = false
+                                }) {
+                                    VStack(spacing: 4) {
+                                        Image(systemName: "location")
+                                            .font(.title2)
+                                            .foregroundColor(.royalBlue)
+                                        Text("Location")
+                                            .font(.caption)
+                                            .foregroundColor(.gray)
+                                    }
+                                }
+                                
+                                Button(action: {
+                                    // Emoji action
+                                    showMoreOptions = false
+                                }) {
+                                    VStack(spacing: 4) {
+                                        Image(systemName: "face.smiling")
+                                            .font(.title2)
+                                            .foregroundColor(.royalBlue)
+                                        Text("Emoji")
+                                            .font(.caption)
+                                            .foregroundColor(.gray)
+                                    }
+                                }
+                                
+                                Spacer()
+                            }
+                            .padding(.horizontal, 20)
+                            .padding(.bottom, 12)
+                            .background(Color.white)
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                        }
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 12)
                     .background(Color.white)
                     .overlay(
                         Rectangle()
@@ -158,22 +242,24 @@ struct ChatRoomView: View {
                 }
             }
             .navigationBarHidden(true)
+            .alert("Chat Error", isPresented: .constant(authManager.chatError != nil)) {
+                Button("OK") {
+                    authManager.chatError = nil
+                }
+            } message: {
+                Text(authManager.chatError ?? "Unknown error")
+            }
             .onAppear {
                 Task {
                     await authManager.fetchMessages(for: chat.conversation.id)
                 }
             }
+
         }
     }
 }
 
-// Helper function to format message time
-func formatMessageTime(_ date: Date) -> String {
-    let formatter = DateFormatter()
-    formatter.dateStyle = .none
-    formatter.timeStyle = .short
-    return formatter.string(from: date)
-}
+
 
 struct Message: Identifiable, Hashable {
     let id = UUID()
@@ -230,13 +316,33 @@ struct MessageBubble: View {
     }
 }
 
+// Helper function to format message time
+func formatMessageTime(_ date: Date) -> String {
+    let formatter = DateFormatter()
+    formatter.dateStyle = .none
+    formatter.timeStyle = .short
+    return formatter.string(from: date)
+}
+
 #Preview {
-    ChatRoomView(
-        chat: ChatListItem(
-            conversation: Conversation(id: "preview", user1Id: "user1", user2Id: "user2", createdAt: Date(), updatedAt: Date()),
-            otherUser: Profile(id: "user2", username: "Harrison Lin", avatarUrl: nil, bio: nil),
-            lastMessage: Message(id: "msg1", conversationId: "preview", senderId: "user2", content: "See you in 30 min", messageType: .text, createdAt: Date(), updatedAt: Date())
-        )
-    )
+    ChatRoomView(chat: ChatListItem(
+        id: "sample-chat-item",
+        conversation: Conversation(
+            id: "sample-conversation",
+            user1Id: "user1",
+            user2Id: "user2",
+            createdAt: Date(),
+            updatedAt: Date()
+        ),
+        otherUser: Profile(
+            id: UUID().uuidString,
+            username: "John Doe",
+            avatar_url: nil,
+            bio: "Sports enthusiast",
+            created_at: "2024-01-01T00:00:00Z"
+        ),
+        lastMessage: nil
+    ))
     .environmentObject(AuthManager())
 } 
+ 

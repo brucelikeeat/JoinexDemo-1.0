@@ -11,7 +11,6 @@ struct MessagesView: View {
     @Binding var selectedTab: Int
     @EnvironmentObject var authManager: AuthManager
     @State private var selectedChat: ChatListItem? = nil
-    @State private var chatListItems: [ChatListItem] = []
     var body: some View {
         NavigationStack {
             ZStack {
@@ -60,33 +59,51 @@ struct MessagesView: View {
                     .padding(.horizontal, 20)
                     .padding(.top, 10)
                     
+                    // Error Alert
+                    .alert("Chat Error", isPresented: .constant(authManager.chatError != nil)) {
+                        Button("OK") {
+                            authManager.chatError = nil
+                        }
+                    } message: {
+                        Text(authManager.chatError ?? "Unknown error")
+                    }
+                    
                     // Chat List
-                    ScrollView {
-                        LazyVStack(spacing: 0) {
-                            if chatListItems.isEmpty {
-                                VStack(spacing: 16) {
-                                    Image(systemName: "message")
-                                        .font(.system(size: 48))
-                                        .foregroundColor(.gray)
-                                    Text("No conversations yet")
-                                        .font(.system(size: 18, weight: .medium))
-                                        .foregroundColor(.gray)
-                                    Text("Start chatting with other users!")
-                                        .font(.system(size: 14))
-                                        .foregroundColor(.gray.opacity(0.7))
-                                }
-                                .padding(.top, 60)
-                            } else {
-                                ForEach(chatListItems, id: \.id) { chat in
-                                    ChatRow(chat: chat)
-                                        .onTapGesture {
-                                            selectedChat = chat
-                                        }
+                                            ScrollView {
+                            LazyVStack(spacing: 0) {
+                                if authManager.isChatLoading {
+                                    VStack(spacing: 16) {
+                                        ProgressView()
+                                            .scaleEffect(1.2)
+                                        Text("Loading conversations...")
+                                            .font(.system(size: 16, weight: .medium))
+                                            .foregroundColor(.gray)
+                                    }
+                                    .padding(.top, 60)
+                                } else if authManager.chatListItems.isEmpty {
+                                    VStack(spacing: 16) {
+                                        Image(systemName: "message")
+                                            .font(.system(size: 48))
+                                            .foregroundColor(.gray)
+                                        Text("No conversations yet")
+                                            .font(.system(size: 18, weight: .medium))
+                                            .foregroundColor(.gray)
+                                        Text("Start chatting with other users!")
+                                            .font(.system(size: 14))
+                                            .foregroundColor(.gray.opacity(0.7))
+                                    }
+                                    .padding(.top, 60)
+                                } else {
+                                    ForEach(authManager.chatListItems, id: \.id) { chat in
+                                        ChatRow(chat: chat)
+                                            .onTapGesture {
+                                                selectedChat = chat
+                                            }
+                                    }
                                 }
                             }
+                            .padding(.top, 20)
                         }
-                        .padding(.top, 20)
-                    }
                 }
             }
             .navigationBarHidden(true)
@@ -95,10 +112,15 @@ struct MessagesView: View {
             }
             .onAppear {
                 Task {
-                    await authManager.fetchConversations()
-                    chatListItems = await authManager.getChatListItems()
+                    await authManager.refreshChatList()
                 }
             }
+            .refreshable {
+                Task {
+                    await authManager.refreshChatList()
+                }
+            }
+
         }
     }
 }
@@ -170,6 +192,8 @@ struct ChatRow: View {
             .padding(.leading, 82)
     }
 }
+
+
 
 
 

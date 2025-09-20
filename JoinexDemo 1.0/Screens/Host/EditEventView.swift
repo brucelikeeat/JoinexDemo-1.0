@@ -8,16 +8,28 @@
 import SwiftUI
 
 struct EditEventView: View {
+    @State private var showDateSheet = false
+    let event: Event
     @Environment(\.dismiss) private var dismiss
-    @State private var sportType = "Road Running"
-    @State private var location = "Gastown, Vancouver, V6B 0M6."
-    @State private var skillLevel: Double = 5
-    @State private var playersNeeded = 200
-    @State private var additionalNotes = "Tag on. Hydrate. Snap selfies. Run fierce. Treat yo'self! 💅✨ #GlowAndGo"
+    @EnvironmentObject var authManager: AuthManager
+    @State private var sportType: String
+    @State private var location: String
+    @State private var skillLevel: Double
+    @State private var playersNeeded: Int
+    @State private var additionalNotes: String
     @State private var isEditingPlayers = false
     @State private var tempPlayersNeeded = ""
     @State private var showSuccessMessage = false
     @State private var isEventSaved = false
+    
+    init(event: Event) {
+        self.event = event
+        self._sportType = State(initialValue: event.sportType)
+        self._location = State(initialValue: event.location)
+        self._skillLevel = State(initialValue: Double(event.skillLevel))
+        self._playersNeeded = State(initialValue: event.maxPlayers)
+        self._additionalNotes = State(initialValue: event.description ?? "")
+    }
     
     var body: some View {
         NavigationStack {
@@ -45,20 +57,110 @@ struct EditEventView: View {
                             
                             Spacer()
                             
-                            Circle()
-                                .fill(Color.royalBlue)
-                                .frame(width: 32, height: 32)
-                                .overlay(
-                                    Text("BL")
-                                        .font(.system(size: 12, weight: .bold, design: .default))
-                                        .foregroundColor(.white)
-                                )
+                            if let urlString = authManager.profile?.avatar_url, let url = URL(string: urlString) {
+                                AsyncImage(url: url) { image in
+                                    image
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: 32, height: 32)
+                                        .clipShape(Circle())
+                                } placeholder: {
+                                    Circle()
+                                        .fill(Color.royalBlue)
+                                        .frame(width: 32, height: 32)
+                                        .overlay(
+                                            Text(String(authManager.profile?.username.prefix(1) ?? "U"))
+                                                .font(.system(size: 12, weight: .bold, design: .default))
+                                                .foregroundColor(.white)
+                                        )
+                                }
+                            } else {
+                                Circle()
+                                    .fill(Color.royalBlue)
+                                    .frame(width: 32, height: 32)
+                                    .overlay(
+                                        Text(String(authManager.profile?.username.prefix(1) ?? "U"))
+                                            .font(.system(size: 12, weight: .bold, design: .default))
+                                            .foregroundColor(.white)
+                                    )
+                            }
                         }
                         .padding(.horizontal, 20)
                         .padding(.top, 10)
                         
-                        // Form Fields
-                        VStack(spacing: 30) {
+                                                    // Form Fields
+                            VStack(spacing: 30) {
+                                // Date / Time / Duration
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Date & Time")
+                                        .font(.system(size: 16, weight: .medium, design: .default))
+                                        .foregroundColor(.black)
+                                        .padding(.horizontal, 15)
+                                    
+                                    Button(action: { showDateSheet = true }) {
+                                        HStack(spacing: 16) {
+                                            // Icon and main content
+                                            HStack(spacing: 12) {
+                                                Image(systemName: "calendar.badge.clock")
+                                                    .foregroundColor(Color.royalBlue)
+                                                    .font(.system(size: 20))
+                                                    .frame(width: 24)
+                                                
+                                                VStack(alignment: .leading, spacing: 4) {
+                                                    HStack {
+                                                        Text(Date(timeIntervalSince1970: event.dateTime.timeIntervalSince1970), style: .date)
+                                                            .font(.system(size: 16, weight: .semibold))
+                                                            .foregroundColor(.black)
+                                                        Spacer()
+                                                    }
+                                                    
+                                                    HStack {
+                                                        Text(Date(timeIntervalSince1970: event.dateTime.timeIntervalSince1970), style: .time)
+                                                            .font(.system(size: 14, weight: .medium))
+                                                            .foregroundColor(.gray)
+                                                        Spacer()
+                                                    }
+                                                }
+                                            }
+                                            
+                                            Spacer()
+                                            
+                                            // Duration badge
+                                            VStack(spacing: 2) {
+                                                Text("\(event.durationMinutes)")
+                                                    .font(.system(size: 18, weight: .bold))
+                                                    .foregroundColor(Color.royalBlue)
+                                                Text("min")
+                                                    .font(.system(size: 10, weight: .medium))
+                                                    .foregroundColor(Color.royalBlue.opacity(0.8))
+                                            }
+                                            .padding(.horizontal, 10)
+                                            .padding(.vertical, 6)
+                                            .background(
+                                                RoundedRectangle(cornerRadius: 8)
+                                                    .fill(Color.royalBlue.opacity(0.1))
+                                            )
+                                            
+                                            // Chevron
+                                            Image(systemName: "chevron.right")
+                                                .foregroundColor(.gray)
+                                                .font(.system(size: 14))
+                                        }
+                                        .padding(.horizontal, 18)
+                                        .padding(.vertical, 16)
+                                        .background(
+                                            RoundedRectangle(cornerRadius: 16)
+                                                .fill(Color.white)
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: 16)
+                                                        .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                                                )
+                                        )
+                                        .frame(maxWidth: .infinity)
+                                    }
+                                    .buttonStyle(PlainButtonStyle())
+                                    .padding(.horizontal, 25)
+                                }
                             VStack(alignment: .leading, spacing: 8) {
                                 Text("Sport Type")
                                     .font(.system(size: 16, weight: .medium, design: .default))
@@ -269,10 +371,35 @@ struct EditEventView: View {
                 }
             }
             .navigationBarHidden(true)
+            .sheet(isPresented: $showDateSheet) {
+                // Bind to temporary states reflecting current event values
+                DateTimeDurationSheet(selectedDate: Binding(get: { event.dateTime }, set: { _ in }), selectedDuration: Binding(get: { event.durationMinutes }, set: { _ in }))
+                    .presentationDetents([.height(320)])
+            }
         }
     }
 }
 
 #Preview {
-    EditEventView()
+    EditEventView(
+        event: Event(
+            id: "preview-event",
+            title: "Sample Event",
+            description: "Sample description",
+            sportType: "Badminton",
+            location: "Vancouver",
+            latitude: nil,
+            longitude: nil,
+            dateTime: Date(),
+            durationMinutes: 120,
+            maxPlayers: 8,
+            currentPlayers: 4,
+            skillLevel: 5,
+            hostId: "preview-host",
+            status: .active,
+            createdAt: Date(),
+            updatedAt: Date()
+        )
+    )
+    .environmentObject(AuthManager())
 } 

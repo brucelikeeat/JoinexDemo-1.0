@@ -6,8 +6,13 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct SignupView: View {
+    @State private var showImagePicker = false
+    @State private var pendingSource: ImageSourceType = .photoLibrary
+    @State private var pickedImage: UIImage? = nil
+    @State private var uploadedAvatarURL: String? = nil
     @EnvironmentObject var authManager: AuthManager
     @Environment(\.dismiss) private var dismiss
     @State private var username = ""
@@ -80,36 +85,43 @@ struct SignupView: View {
                         
                         // Profile picture section
                         VStack(spacing: 16) {
-                            // Profile picture placeholder
+                            // Profile picture preview or placeholder
                             ZStack {
-                                Circle()
-                                    .fill(Color.royalBlue)
-                                    .frame(width: 100, height: 100)
-                                
-                                Text("BL")
-                                    .font(.system(size: 36, weight: .bold, design: .default))
-                                    .foregroundColor(.white)
+                                if let image = pickedImage {
+                                    Image(uiImage: image)
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: 100, height: 100)
+                                        .clipShape(Circle())
+                                } else {
+                                    Circle()
+                                        .fill(Color.royalBlue)
+                                        .frame(width: 100, height: 100)
+                                        .overlay(
+                                            Text(username.isEmpty ? "U" : String(username.prefix(1)))
+                                                .font(.system(size: 36, weight: .bold, design: .default))
+                                                .foregroundColor(.white)
+                                        )
+                                }
                             }
                             
-                            // Upload photo button
-                            Button(action: {
-                                // Handle photo upload
-                            }) {
-                                HStack {
-                                    Image(systemName: "camera")
-                                        .foregroundColor(.gray)
-                                    Text("Upload Photo")
-                                        .font(.system(size: 16, weight: .medium, design: .default))
-                                        .foregroundColor(.black)
+                            // Upload photo buttons
+                            HStack(spacing: 12) {
+                                Button(action: { pendingSource = .photoLibrary; showImagePicker = true }) {
+                                    HStack {
+                                        Image(systemName: "photo")
+                                        Text("Choose Photo")
+                                    }
                                 }
-                                .padding()
-                                .frame(maxWidth: .infinity)
-                                .background(Color.white)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .stroke(Color.gray.opacity(0.3), lineWidth: 1)
-                                )
-                                .cornerRadius(8)
+                                .foregroundColor(.royalBlue)
+                                
+                                Button(action: { pendingSource = .camera; showImagePicker = true }) {
+                                    HStack {
+                                        Image(systemName: "camera")
+                                        Text("Take Photo")
+                                    }
+                                }
+                                .foregroundColor(.royalBlue)
                             }
                             
                             Text("Optional profile picture for your badminton journey.")
@@ -168,18 +180,11 @@ struct SignupView: View {
                                         .font(.title3)
                                 }
                                 
-                                Text("I agree to the ")
-                                    .font(.system(size: 14, weight: .regular, design: .default))
-                                    .foregroundColor(.black) +
-                                Text("Terms of Service")
-                                    .font(.system(size: 14, weight: .medium, design: .default))
-                                    .foregroundColor(.royalBlue) +
-                                Text(" and ")
-                                    .font(.system(size: 14, weight: .regular, design: .default))
-                                    .foregroundColor(.black) +
-                                Text("Privacy Policy")
-                                    .font(.system(size: 14, weight: .medium, design: .default))
-                                    .foregroundColor(.royalBlue)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("I agree to the Terms of Service and Privacy Policy")
+                                        .font(.system(size: 14, weight: .regular, design: .default))
+                                        .foregroundColor(.black)
+                                }
                             }
                             
                             if showTermsError {
@@ -213,8 +218,15 @@ struct SignupView: View {
                             }
                             
                             Task {
+                                var avatarURL: String? = nil
+                                if let img = pickedImage {
+                                    avatarURL = await authManager.uploadAvatar(image: img)
+                                }
                                 let success = await authManager.signUp(email: email, password: password)
-                                if !success {
+                                if success {
+                                    // Update profile with chosen username and optional avatar
+                                    await _ = authManager.updateProfile(username: username, avatar_url: avatarURL, bio: nil)
+                                } else {
                                     showAlert = true
                                 }
                             }
@@ -234,6 +246,11 @@ struct SignupView: View {
                 }
             }
             .navigationBarHidden(true)
+            .sheet(isPresented: $showImagePicker) {
+                ImagePicker(sourceType: pendingSource) { image in
+                    pickedImage = image
+                }
+            }
             .alert("Signup Error", isPresented: $showAlert) {
                 Button("OK") { }
             } message: {

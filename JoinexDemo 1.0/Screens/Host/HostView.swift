@@ -12,8 +12,12 @@ struct HostView: View {
     @EnvironmentObject var authManager: AuthManager
     @State private var navigateToCreateEvent = false
     @State private var navigateToEditEvent = false
+    @State private var selectedEvent: Event? = nil
     @State private var showCancelAlert = false
     @State private var eventToCancel: Event? = nil
+    @State private var showSuccessAlert = false
+    @State private var showErrorAlert = false
+    @State private var alertMessage = ""
     
     var body: some View {
         NavigationStack {
@@ -38,14 +42,33 @@ struct HostView: View {
                         Button(action: {
                             selectedTab = 4
                         }) {
-                            Circle()
-                                .fill(Color.royalBlue)
-                                .frame(width: 40, height: 40)
-                                .overlay(
-                                    Text("BL")
-                                        .font(.system(size: 16, weight: .bold, design: .default))
-                                        .foregroundColor(.white)
-                                )
+                            if let urlString = authManager.profile?.avatar_url, let url = URL(string: urlString) {
+                                AsyncImage(url: url) { image in
+                                    image
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: 40, height: 40)
+                                        .clipShape(Circle())
+                                } placeholder: {
+                                    Circle()
+                                        .fill(Color.royalBlue)
+                                        .frame(width: 40, height: 40)
+                                        .overlay(
+                                            Text(String(authManager.profile?.username.prefix(1) ?? "U"))
+                                                .font(.system(size: 16, weight: .bold, design: .default))
+                                                .foregroundColor(.white)
+                                        )
+                                }
+                            } else {
+                                Circle()
+                                    .fill(Color.royalBlue)
+                                    .frame(width: 40, height: 40)
+                                    .overlay(
+                                        Text(String(authManager.profile?.username.prefix(1) ?? "U"))
+                                            .font(.system(size: 16, weight: .bold, design: .default))
+                                            .foregroundColor(.white)
+                                    )
+                            }
                         }
                     }
                     .padding(.horizontal, 20)
@@ -74,8 +97,9 @@ struct HostView: View {
                                             ForEach(authManager.hostedEvents) { event in
                                                 HostedEventCard(
                                                     title: event.title,
-                                                    date: event.formattedDate,
+                                                    date: event.formattedDateTime,
                                                     location: event.location,
+                                                    duration: "\(event.durationMinutes) min",
                                                     imageName: "sportscourt",
                                                     status: event.status.displayName.lowercased(),
                                                     statusColor: event.status.color,
@@ -83,7 +107,7 @@ struct HostView: View {
                                                     maxPlayers: event.maxPlayers,
                                                     canCancel: event.status == .active,
                                                     onCancel: { eventToCancel = event; showCancelAlert = true },
-                                                    action: { navigateToEditEvent = true }
+                                                    action: { selectedEvent = event; navigateToEditEvent = true }
                                                 )
                                             }
                                         }
@@ -121,19 +145,52 @@ struct HostView: View {
                         .background(Color.white)
                     }
                 }
-                .alert(isPresented: $showCancelAlert) {
-                    Alert(
-                        title: Text("Cancel Event"),
-                        message: Text("Are you sure you want to cancel \(eventToCancel?.title ?? "this event")? This action cannot be undone."),
-                        primaryButton: .destructive(Text("Cancel Event")) {
-                            if let event = eventToCancel {
-                                Task {
-                                    await authManager.cancelEvent(id: event.id)
+                .alert("Cancel Event", isPresented: $showCancelAlert) {
+                    Button("Cancel Event", role: .destructive) {
+                        if let event = eventToCancel {
+                            Task {
+                                print("HostView: Attempting to cancel event: \(event.title)")
+                                let success = await authManager.cancelEvent(id: event.id)
+                                if success {
+                                    print("HostView: Event cancelled successfully")
+                                    // Refresh the events list immediately
+                                    await authManager.fetchHostedEvents()
+                                    // Show success feedback
+                                    await MainActor.run {
+                                        alertMessage = "Event '\(event.title)' has been cancelled successfully."
+                                        showSuccessAlert = true
+                                    }
+                                } else {
+                                    print("HostView: Failed to cancel event")
+                                    await MainActor.run {
+                                        alertMessage = authManager.errorMessage ?? "Failed to cancel event"
+                                        showErrorAlert = true
+                                    }
                                 }
                             }
-                        },
-                        secondaryButton: .cancel()
-                    )
+                        }
+                    }
+                    Button("Keep Event", role: .cancel) {
+                        eventToCancel = nil
+                    }
+                } message: {
+                    Text("Are you sure you want to cancel '\(eventToCancel?.title ?? "this event")'? This action cannot be undone.")
+                }
+                .alert("Success", isPresented: $showSuccessAlert) {
+                    Button("OK") {
+                        showSuccessAlert = false
+                        eventToCancel = nil
+                    }
+                } message: {
+                    Text(alertMessage)
+                }
+                .alert("Error", isPresented: $showErrorAlert) {
+                    Button("OK") {
+                        showErrorAlert = false
+                        eventToCancel = nil
+                    }
+                } message: {
+                    Text(alertMessage)
                 }
             }
             .navigationDestination(isPresented: $navigateToCreateEvent) {
@@ -141,8 +198,10 @@ struct HostView: View {
                     .environmentObject(authManager)
             }
             .navigationDestination(isPresented: $navigateToEditEvent) {
-                EditEventView()
-                    .environmentObject(authManager)
+                if let event = selectedEvent {
+                    EditEventView(event: event)
+                        .environmentObject(authManager)
+                }
             }
             .navigationBarHidden(true)
             .onAppear {
@@ -158,6 +217,7 @@ struct HostedEventCard: View {
     let title: String
     let date: String
     let location: String
+    let duration: String
     let imageName: String
     let status: String
     let statusColor: Color
@@ -207,6 +267,15 @@ struct HostedEventCard: View {
                             Text("\(playersCount) / \(maxPlayers) players")
                                 .font(.system(size: 14, weight: .regular, design: .default))
                                 .foregroundColor(.gray)
+                        }
+                        
+                        HStack {
+                            Image(systemName: "clock")
+                                .foregroundColor(.blue)
+                                .font(.caption)
+                            Text(duration)
+                                .font(.system(size: 14, weight: .medium, design: .default))
+                                .foregroundColor(.blue)
                         }
                     }
                     Spacer()
@@ -275,4 +344,5 @@ struct StatCard: View {
     HostView(selectedTab: .constant(0))
         .environmentObject(AuthManager())
 } 
+ 
  

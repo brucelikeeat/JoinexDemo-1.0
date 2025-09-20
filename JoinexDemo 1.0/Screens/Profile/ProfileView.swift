@@ -44,11 +44,37 @@ struct ProfileView: View {
                         .padding(.horizontal, 20)
                         .padding(.top, 10)
                         
-                                                       // Profile Picture
-                               Image("logo1")
-                                   .resizable()
-                                   .aspectRatio(contentMode: .fit)
-                                   .frame(width: 100, height: 100)
+                        // Profile Picture
+                        if let urlString = authManager.profile?.avatar_url, let url = URL(string: urlString) {
+                            AsyncImage(url: url) { image in
+                                image
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 100, height: 100)
+                                    .clipShape(Circle())
+                                    .overlay(
+                                        Circle()
+                                            .stroke(Color.royalBlue.opacity(0.3), lineWidth: 2)
+                                    )
+                            } placeholder: {
+                                Circle()
+                                    .fill(Color.royalBlue.opacity(0.1))
+                                    .frame(width: 100, height: 100)
+                                    .overlay(
+                                        ProgressView()
+                                            .scaleEffect(0.8)
+                                    )
+                            }
+                        } else {
+                            Circle()
+                                .fill(Color.royalBlue)
+                                .frame(width: 100, height: 100)
+                                .overlay(
+                                    Text(String(authManager.profile?.username.prefix(1) ?? "U"))
+                                        .font(.system(size: 36, weight: .bold, design: .default))
+                                        .foregroundColor(.white)
+                                )
+                        }
                         
                         Text(authManager.profile?.username ?? "User")
                             .font(.system(size: 18, weight: .bold, design: .default))
@@ -59,18 +85,43 @@ struct ProfileView: View {
                         
                         // About Me Section
                         VStack(alignment: .leading, spacing: 12) {
-                            Text("About Me")
-                                .font(.system(size: 18, weight: .bold, design: .default))
-                                .foregroundColor(.black)
+                            HStack {
+                                Image(systemName: "person.text.rectangle")
+                                    .foregroundColor(.royalBlue)
+                                    .font(.system(size: 16, weight: .medium))
+                                
+                                Text("About Me")
+                                    .font(.system(size: 18, weight: .bold, design: .default))
+                                    .foregroundColor(.black)
+                                
+                                Spacer()
+                            }
                             
-                            Text(authManager.profile?.bio ?? "No bio available")
-                                .font(.system(size: 14, weight: .regular, design: .default))
-                                .foregroundColor(.gray)
-                                .lineSpacing(2)
+                            if let bio = authManager.profile?.bio, !bio.isEmpty {
+                                Text(bio)
+                                    .font(.system(size: 14, weight: .regular, design: .default))
+                                    .foregroundColor(.black)
+                                    .lineSpacing(2)
+                                    .multilineTextAlignment(.leading)
+                            } else {
+                                HStack {
+                                    Image(systemName: "plus.circle")
+                                        .foregroundColor(.gray)
+                                        .font(.system(size: 14))
+                                    
+                                    Text("Add a bio to tell others about yourself")
+                                        .font(.system(size: 14, weight: .regular, design: .default))
+                                        .foregroundColor(.gray)
+                                }
+                            }
                         }
                         .padding()
-                        .background(Color.white)
+                        .background(Color.gray.opacity(0.05))
                         .cornerRadius(16)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                        )
 
                         .padding(.horizontal, 20)
                         

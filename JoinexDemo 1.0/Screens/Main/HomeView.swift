@@ -53,14 +53,33 @@ struct HomeView: View {
                             Button(action: {
                                 selectedTab = 4
                             }) {
-                                Circle()
-                                    .fill(Color.royalBlue)
-                                    .frame(width: 40, height: 40)
-                                    .overlay(
-                                        Text("BL")
-                                            .font(.system(size: 16, weight: .bold, design: .default))
-                                            .foregroundColor(.white)
-                                    )
+                                if let urlString = authManager.profile?.avatar_url, let url = URL(string: urlString) {
+                                    AsyncImage(url: url) { image in
+                                        image
+                                            .resizable()
+                                            .scaledToFill()
+                                            .frame(width: 40, height: 40)
+                                            .clipShape(Circle())
+                                    } placeholder: {
+                                        Circle()
+                                            .fill(Color.royalBlue)
+                                            .frame(width: 40, height: 40)
+                                            .overlay(
+                                                Text(String(authManager.profile?.username.prefix(1) ?? "U"))
+                                                    .font(.system(size: 16, weight: .bold, design: .default))
+                                                    .foregroundColor(.white)
+                                            )
+                                    }
+                                } else {
+                                    Circle()
+                                        .fill(Color.royalBlue)
+                                        .frame(width: 40, height: 40)
+                                        .overlay(
+                                            Text(String(authManager.profile?.username.prefix(1) ?? "U"))
+                                                .font(.system(size: 16, weight: .bold, design: .default))
+                                                .foregroundColor(.white)
+                                        )
+                                }
                             }
                         }
                         .padding(.horizontal, 20)
@@ -87,6 +106,7 @@ struct HomeView: View {
                                             title: event.title,
                                             date: event.formattedDateTime,
                                             location: event.location,
+                                            duration: "\(event.durationMinutes) min",
                                             imageName: "sportscourt",
                                             status: event.isFull ? "Full" : "Open",
                                             statusColor: event.isFull ? .red : .green
@@ -147,6 +167,7 @@ struct EventCard: View {
     let title: String
     let date: String
     let location: String
+    let duration: String
     let imageName: String
     let status: String
     let statusColor: Color
@@ -177,6 +198,16 @@ struct EventCard: View {
                     Text(location)
                         .font(.system(size: 14, weight: .regular, design: .default))
                         .foregroundColor(.gray)
+                    
+                    HStack(spacing: 4) {
+                        Image(systemName: "clock")
+                            .foregroundColor(.royalBlue)
+                            .font(.caption)
+                        
+                        Text(duration)
+                            .font(.system(size: 14, weight: .medium, design: .default))
+                            .foregroundColor(.royalBlue)
+                    }
                 }
                 
                 Spacer()
@@ -240,3 +271,4 @@ struct ActivityCard: View {
     HomeView(selectedTab: .constant(0))
         .environmentObject(AuthManager())
 } 
+ 
