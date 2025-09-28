@@ -150,44 +150,72 @@ struct Event: Identifiable, Codable, Hashable {
         hostId = try container.decode(String.self, forKey: .hostId)
         status = try container.decode(EventStatus.self, forKey: .status)
         
-        // Handle date decoding with multiple format support
+        // Handle date decoding with comprehensive format support
         let dateTimeString = try container.decode(String.self, forKey: .dateTime)
         let createdAtString = try container.decode(String.self, forKey: .createdAt)
         let updatedAtString = try container.decode(String.self, forKey: .updatedAt)
         
-        // Try different date formats
+        // Parse dates with multiple format support
+        self.dateTime = Self.parseDate(from: dateTimeString)
+        self.createdAt = Self.parseDate(from: createdAtString)
+        self.updatedAt = Self.parseDate(from: updatedAtString)
+    }
+    
+    // MARK: - Date Parsing Helper
+    private static func parseDate(from dateString: String) -> Date {
+        // Try ISO8601DateFormatter first (most reliable)
         let isoFormatter = ISO8601DateFormatter()
         isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         
-        let formatter1 = DateFormatter()
-        formatter1.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSSSS'Z'"
-        
-        let formatter2 = DateFormatter()
-        formatter2.dateFormat = "yyyy-MM-dd'T'HH:mm:ss'Z'"
-        
-        // Try to decode dates with different formatters
-        var decodedDateTime: Date?
-        var decodedCreatedAt: Date?
-        var decodedUpdatedAt: Date?
-        
-        // Try ISO formatter first
-        decodedDateTime = isoFormatter.date(from: dateTimeString) ?? formatter1.date(from: dateTimeString) ?? formatter2.date(from: dateTimeString)
-        decodedCreatedAt = isoFormatter.date(from: createdAtString) ?? formatter1.date(from: createdAtString) ?? formatter2.date(from: createdAtString)
-        decodedUpdatedAt = isoFormatter.date(from: updatedAtString) ?? formatter1.date(from: updatedAtString) ?? formatter2.date(from: updatedAtString)
-        
-        guard let dateTime = decodedDateTime,
-              let createdAt = decodedCreatedAt,
-              let updatedAt = decodedUpdatedAt else {
-            throw DecodingError.dataCorruptedError(forKey: .dateTime, in: container, debugDescription: "Unable to decode date format")
+        if let date = isoFormatter.date(from: dateString) {
+            return date
         }
         
-        self.dateTime = dateTime
-        self.createdAt = createdAt
-        self.updatedAt = updatedAt
-    }
+        // Try with different ISO8601 options
+        isoFormatter.formatOptions = [.withInternetDateTime]
+        if let date = isoFormatter.date(from: dateString) {
+            return date
+        }
+        
+        // Try common date formats
+        let dateFormats = [
+            "yyyy-MM-dd'T'HH:mm:ss.SSSSSS'Z'",
+            "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
+            "yyyy-MM-dd'T'HH:mm:ss'Z'",
+            "yyyy-MM-dd'T'HH:mm:ss.SSSSSS+00:00",
+            "yyyy-MM-dd'T'HH:mm:ss.SSS+00:00",
+            "yyyy-MM-dd'T'HH:mm:ss+00:00",
+            "yyyy-MM-dd HH:mm:ss",
+            "yyyy-MM-dd"
+        ]
+        
+        for format in dateFormats {
+            let formatter = DateFormatter()
+            formatter.dateFormat = format
+            formatter.timeZone = TimeZone(abbreviation: "UTC")
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            
+            if let date = formatter.date(from: dateString) {
+                print("Event: Successfully parsed date '\(dateString)' using format '\(format)'")
+                return date
+            }
+        }
+        
+        // If all else fails, try to parse as a timestamp
+        if let timestamp = Double(dateString) {
+            let date = Date(timeIntervalSince1970: timestamp)
+            print("Event: Successfully parsed date '\(dateString)' as timestamp")
+            return date
+        }
+        
+        // Log the problematic date string for debugging
+        print("Event: Failed to parse date '\(dateString)' - using current date as fallback")
+        
+        // Return current date as fallback instead of throwing error
+        return Date()
+    }// MARK: - Event Creation
 }
 
-// MARK: - Event Creation
 struct CreateEventRequest: Codable {
     let title: String
     let description: String?
@@ -265,6 +293,22 @@ struct UpdateEventRequest: Codable {
     }
 }
 
+// MARK: - Location Result Model
+struct LocationResult: Identifiable, Codable, Hashable {
+    let id: String
+    let displayName: String
+    let latitude: Double?
+    let longitude: Double?
+    let distance: Double?
+    
+    enum CodingKeys: String, CodingKey {
+        case id
+        case displayName = "display_name"
+        case latitude = "lat"
+        case longitude = "lon"
+        case distance
+    }
+}
 @MainActor
 class AuthManager: ObservableObject {
     @Published var currentUser: User?
@@ -458,7 +502,7 @@ class AuthManager: ObservableObject {
         guard let data = image.jpegData(compressionQuality: 0.85) else { return nil }
         let filePath = "avatars/\(userId.uuidString)/avatar_\(Int(Date().timeIntervalSince1970)).jpg"
         do {
-            _ = try await supabase.storage.from("avatars").upload(path: filePath, file: data, options: FileOptions(contentType: "image/jpeg", upsert: true))
+            _ = try await supabase.storage.from("avatars").upload(filePath, data: data, options: FileOptions(contentType: "image/jpeg", upsert: true))
             if let publicURL = try? supabase.storage.from("avatars").getPublicURL(path: filePath) {
                 return publicURL.absoluteString
             } else {
@@ -531,6 +575,8 @@ class AuthManager: ObservableObject {
     
     // Fetch all active events
     func fetchEvents() async {
+        print("AuthManager: fetchEvents() called")
+        print("AuthManager: Current user: \(currentUser?.id.uuidString ?? "nil")")
         do {
             let events: [Event] = try await supabase
                 .from("events")
@@ -540,6 +586,7 @@ class AuthManager: ObservableObject {
                 .execute()
                 .value
             
+            print("AuthManager: Fetched \(events.count) events")
             self.userEvents = events
         } catch {
             print("Error fetching events: \(error)")
@@ -565,6 +612,18 @@ class AuthManager: ObservableObject {
         }
     }
     
+    // Refresh all event lists for real-time updates across all views
+    func refreshAllEventLists() async {
+        print("AuthManager: Refreshing all event lists...")
+        
+        // Refresh all events (for ExploreView)
+        await fetchEvents()
+        
+        // Refresh hosted events (for HostView)
+        await fetchHostedEvents()
+        
+        print("AuthManager: All event lists refreshed - userEvents: \(userEvents.count), hostedEvents: \(hostedEvents.count)")
+    }    
     // Create a new event with sport validation
     func createEvent(_ eventRequest: CreateEventRequest) async -> Bool {
         print("AuthManager: Creating event with title: \(eventRequest.title)")
@@ -583,12 +642,12 @@ class AuthManager: ObservableObject {
                 let event_sport_type: String
                 let event_location: String
                 let event_date_time: String
-                let event_duration_minutes: String
-                let event_max_players: String
-                let event_skill_level: String
+                let event_duration_minutes: Int
+                let event_max_players: Int
+                let event_skill_level: Int
                 let event_host_id: String
-                let event_latitude: String?
-                let event_longitude: String?
+                let event_latitude: Double?
+                let event_longitude: Double?
             }
             
             let params = EventCreationParams(
@@ -597,12 +656,12 @@ class AuthManager: ObservableObject {
                 event_sport_type: eventRequest.sportType,
                 event_location: eventRequest.location,
                 event_date_time: formatter.string(from: eventRequest.dateTime),
-                event_duration_minutes: String(eventRequest.durationMinutes),
-                event_max_players: String(eventRequest.maxPlayers),
-                event_skill_level: String(eventRequest.skillLevel),
+                event_duration_minutes: eventRequest.durationMinutes,
+                event_max_players: eventRequest.maxPlayers,
+                event_skill_level: eventRequest.skillLevel,
                 event_host_id: eventRequest.hostId,
-                event_latitude: eventRequest.latitude != nil ? String(eventRequest.latitude!) : nil,
-                event_longitude: eventRequest.longitude != nil ? String(eventRequest.longitude!) : nil
+                event_latitude: eventRequest.latitude,
+                event_longitude: eventRequest.longitude
             )
             
             print("AuthManager: Sending parameters to RPC:")
@@ -614,8 +673,8 @@ class AuthManager: ObservableObject {
             print("  - Max Players: \(params.event_max_players)")
             print("  - Skill Level: \(params.event_skill_level)")
             print("  - Host ID: \(params.event_host_id)")
-            print("  - Latitude: \(params.event_latitude ?? "nil")")
-            print("  - Longitude: \(params.event_longitude ?? "nil")")
+            print("  - Latitude: \(params.event_latitude?.description ?? "nil")")
+            print("  - Longitude: \(params.event_longitude?.description ?? "nil")")
             
             let response = try await supabase
                 .rpc("create_event_with_validation", params: params)
@@ -631,7 +690,7 @@ class AuthManager: ObservableObject {
             print("AuthManager: Response value type: \(type(of: response.value))")
             
             // Refresh hosted events
-            await fetchHostedEvents()
+            await refreshAllEventLists()
             return true
         } catch {
             print("AuthManager: Error creating event: \(error.localizedDescription)")
@@ -651,7 +710,7 @@ class AuthManager: ObservableObject {
                 
                 if !response.isEmpty {
                     print("AuthManager: Event created successfully via fallback method")
-                    await fetchHostedEvents()
+                    await refreshAllEventLists()
                     return true
                 } else {
                     print("AuthManager: Fallback method returned empty response")
@@ -676,7 +735,7 @@ class AuthManager: ObservableObject {
                 .execute()
             
             // Refresh hosted events
-            await fetchHostedEvents()
+            await refreshAllEventLists()
             return true
         } catch {
             errorMessage = error.localizedDescription
@@ -1254,6 +1313,7 @@ class AuthManager: ObservableObject {
             
             // Order by date (closest events first)
             let events: [Event] = try await query.order("date_time", ascending: true).execute().value
+            print("AuthManager: Fetched \(events.count) events")
             self.userEvents = events
             
         } catch {
@@ -1276,7 +1336,8 @@ class AuthManager: ObservableObject {
                     .execute()
                     .value
                 
-                self.userEvents = events
+                print("AuthManager: Fetched \(events.count) events")
+            self.userEvents = events
             } catch {
                 print("Error fetching events by sport: \(error)")
             }
@@ -1306,6 +1367,7 @@ class AuthManager: ObservableObject {
                 .execute()
                 .value
             
+            print("AuthManager: Fetched \(events.count) events")
             self.userEvents = events
         } catch {
             print("Error fetching events by date: \(error)")
@@ -1326,6 +1388,7 @@ class AuthManager: ObservableObject {
                 .execute()
                 .value
             
+            print("AuthManager: Fetched \(events.count) events")
             self.userEvents = events
         } catch {
             print("Error fetching events by location: \(error)")
@@ -1347,7 +1410,8 @@ class AuthManager: ObservableObject {
                     .execute()
                     .value
                 
-                self.userEvents = events
+                print("AuthManager: Fetched \(events.count) events")
+            self.userEvents = events
             } catch {
                 print("Error performing search: \(error)")
             }
@@ -1402,6 +1466,7 @@ class AuthManager: ObservableObject {
             
             // Order by date (closest events first)
             let events: [Event] = try await query.order("date_time", ascending: true).execute().value
+            print("AuthManager: Fetched \(events.count) events")
             self.userEvents = events
             
         } catch {
@@ -1425,7 +1490,8 @@ class AuthManager: ObservableObject {
                     .execute()
                     .value
                 
-                self.userEvents = events
+                print("AuthManager: Fetched \(events.count) events")
+            self.userEvents = events
             } catch {
                 print("Error performing real-time search: \(error)")
             }
@@ -1447,7 +1513,8 @@ class AuthManager: ObservableObject {
                     .execute()
                     .value
                 
-                self.userEvents = events
+                print("AuthManager: Fetched \(events.count) events")
+            self.userEvents = events
             } catch {
                 print("Error filtering by sport: \(error)")
             }
@@ -1477,6 +1544,7 @@ class AuthManager: ObservableObject {
                 .execute()
                 .value
             
+            print("AuthManager: Fetched \(events.count) events")
             self.userEvents = events
         } catch {
             print("Error filtering by date: \(error)")
@@ -1497,6 +1565,7 @@ class AuthManager: ObservableObject {
                 .execute()
                 .value
             
+            print("AuthManager: Fetched \(events.count) events")
             self.userEvents = events
         } catch {
             print("Error filtering by location: \(error)")
@@ -1518,6 +1587,7 @@ class AuthManager: ObservableObject {
                 .order("date_time", ascending: true)
             
             let events: [Event] = try await query.execute().value
+            print("AuthManager: Fetched \(events.count) events")
             self.userEvents = events
         } catch {
             print("Error searching by location: \(error)")
@@ -1594,6 +1664,7 @@ class AuthManager: ObservableObject {
                 .execute()
                 .value
             
+            print("AuthManager: Fetched \(events.count) events")
             self.userEvents = events
         } catch {
             print("Error filtering by sport type: \(error)")
@@ -1619,6 +1690,7 @@ class AuthManager: ObservableObject {
                 .execute()
                 .value
             
+            print("AuthManager: Fetched \(events.count) events")
             self.userEvents = events
         } catch {
             print("Error filtering by date range: \(error)")
@@ -1671,6 +1743,7 @@ class AuthManager: ObservableObject {
                 .execute()
                 .value
             
+            print("AuthManager: Fetched \(events.count) events")
             self.userEvents = events
         } catch {
             print("Error performing live search: \(error)")
@@ -1844,6 +1917,7 @@ class AuthManager: ObservableObject {
                 .execute()
                 .value
             
+            print("AuthManager: Fetched \(events.count) events")
             self.userEvents = events
         } catch {
             print("Error searching with all filters: \(error)")

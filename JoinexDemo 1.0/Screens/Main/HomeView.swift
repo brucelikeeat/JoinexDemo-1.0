@@ -156,10 +156,12 @@ struct HomeView: View {
             .navigationBarHidden(true)
             .onAppear {
                 Task {
-                    await authManager.fetchEvents()
+                    await authManager.refreshAllEventLists()
                 }
             }
-        }
+            .refreshable {
+                await authManager.refreshAllEventLists()
+            }        }
     }
 }
 

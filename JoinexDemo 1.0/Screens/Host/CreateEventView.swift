@@ -492,18 +492,11 @@ struct CreateEventView: View {
             alertMessage = "Event created successfully! 🎉"
             isEventCreated = true
             showSuccessMessage = true
+            
+            // Force refresh all event lists to ensure real-time updates
+            await authManager.refreshAllEventLists()
         } else {
-            // Check if the error message indicates a parsing issue rather than actual failure
-            if let errorMsg = authManager.errorMessage, 
-               (errorMsg.contains("Failed to get event ID") || 
-                errorMsg.contains("Response value type")) {
-                // Event was likely created successfully but response parsing failed
-                alertMessage = "Event created successfully! 🎉 (Note: Response parsing issue, but event was saved)"
-                isEventCreated = true
-                showSuccessMessage = true
-            } else {
-                alertMessage = authManager.errorMessage ?? "Failed to create event"
-            }
+            alertMessage = authManager.errorMessage ?? "Failed to create event"
         }
         
         showAlert = true

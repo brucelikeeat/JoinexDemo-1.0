@@ -259,47 +259,24 @@ struct LocationSearchView: View {
         
         isSearching = true
         
-        do {
-            let results = await authManager.searchLocationsFromDB(query: searchText)
-            await MainActor.run {
-                searchResults = results
-                isSearching = false
-            }
-        } catch {
-            await MainActor.run {
-                searchResults = []
-                isSearching = false
-            }
+        let results = await authManager.searchLocationsFromDB(query: searchText)
+        await MainActor.run {
+            searchResults = results
+            isSearching = false
         }
-    }
     
-    private let popularLocations = [
-        "Surrey, British Columbia",
-        "Vancouver, British Columbia",
-        "Burnaby, British Columbia",
-        "Richmond, British Columbia",
-        "Coquitlam, British Columbia",
-        "Delta, British Columbia",
-        "Langley, British Columbia",
-        "New Westminster, British Columbia",
-        "Port Coquitlam, British Columbia",
-        "Maple Ridge, British Columbia"
-    ]
 }
 
-// MARK: - Location Result Model
-struct LocationResult: Identifiable, Codable, Hashable {
-    let id: String
-    let displayName: String
-    let latitude: Double?
-    let longitude: Double?
-    let distance: Double?
-    
-    enum CodingKeys: String, CodingKey {
-        case id
-        case displayName = "display_name"
-        case latitude = "lat"
-        case longitude = "lon"
-        case distance
-    }
 } 
+private let popularLocations = [
+    "Surrey, British Columbia",
+    "Vancouver, British Columbia",
+    "Burnaby, British Columbia",
+    "Richmond, British Columbia",
+    "Coquitlam, British Columbia",
+    "Delta, British Columbia",
+    "Langley, British Columbia",
+    "New Westminster, British Columbia",
+    "Port Coquitlam, British Columbia",
+    "Maple Ridge, British Columbia"
+]

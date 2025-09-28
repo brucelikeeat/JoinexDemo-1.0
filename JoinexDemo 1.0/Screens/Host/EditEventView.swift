@@ -9,6 +9,8 @@ import SwiftUI
 
 struct EditEventView: View {
     @State private var showDateSheet = false
+    @State private var selectedDate: Date
+    @State private var selectedDuration: Int
     let event: Event
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var authManager: AuthManager
@@ -21,6 +23,9 @@ struct EditEventView: View {
     @State private var tempPlayersNeeded = ""
     @State private var showSuccessMessage = false
     @State private var isEventSaved = false
+    @State private var isLoading = false
+    @State private var showAlert = false
+    @State private var alertMessage = ""
     
     init(event: Event) {
         self.event = event
@@ -29,6 +34,8 @@ struct EditEventView: View {
         self._skillLevel = State(initialValue: Double(event.skillLevel))
         self._playersNeeded = State(initialValue: event.maxPlayers)
         self._additionalNotes = State(initialValue: event.description ?? "")
+        self._selectedDate = State(initialValue: event.dateTime)
+        self._selectedDuration = State(initialValue: event.durationMinutes)
     }
     
     var body: some View {
@@ -88,79 +95,80 @@ struct EditEventView: View {
                         .padding(.horizontal, 20)
                         .padding(.top, 10)
                         
-                                                    // Form Fields
-                            VStack(spacing: 30) {
-                                // Date / Time / Duration
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text("Date & Time")
-                                        .font(.system(size: 16, weight: .medium, design: .default))
-                                        .foregroundColor(.black)
-                                        .padding(.horizontal, 15)
-                                    
-                                    Button(action: { showDateSheet = true }) {
-                                        HStack(spacing: 16) {
-                                            // Icon and main content
-                                            HStack(spacing: 12) {
-                                                Image(systemName: "calendar.badge.clock")
-                                                    .foregroundColor(Color.royalBlue)
-                                                    .font(.system(size: 20))
-                                                    .frame(width: 24)
+                        // Form Fields
+                        VStack(spacing: 30) {
+                            // Date / Time / Duration
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Date & Time")
+                                    .font(.system(size: 16, weight: .medium, design: .default))
+                                    .foregroundColor(.black)
+                                    .padding(.horizontal, 15)
+                                
+                                Button(action: { showDateSheet = true }) {
+                                    HStack(spacing: 16) {
+                                        // Icon and main content
+                                        HStack(spacing: 12) {
+                                            Image(systemName: "calendar.badge.clock")
+                                                .foregroundColor(Color.royalBlue)
+                                                .font(.system(size: 20))
+                                                .frame(width: 24)
+                                            
+                                            VStack(alignment: .leading, spacing: 4) {
+                                                HStack {
+                                                    Text(selectedDate, style: .date)
+                                                        .font(.system(size: 16, weight: .semibold))
+                                                        .foregroundColor(.black)
+                                                    Spacer()
+                                                }
                                                 
-                                                VStack(alignment: .leading, spacing: 4) {
-                                                    HStack {
-                                                        Text(Date(timeIntervalSince1970: event.dateTime.timeIntervalSince1970), style: .date)
-                                                            .font(.system(size: 16, weight: .semibold))
-                                                            .foregroundColor(.black)
-                                                        Spacer()
-                                                    }
-                                                    
-                                                    HStack {
-                                                        Text(Date(timeIntervalSince1970: event.dateTime.timeIntervalSince1970), style: .time)
-                                                            .font(.system(size: 14, weight: .medium))
-                                                            .foregroundColor(.gray)
-                                                        Spacer()
-                                                    }
+                                                HStack {
+                                                    Text(selectedDate, style: .time)
+                                                        .font(.system(size: 14, weight: .medium))
+                                                        .foregroundColor(.gray)
+                                                    Spacer()
                                                 }
                                             }
-                                            
-                                            Spacer()
-                                            
-                                            // Duration badge
-                                            VStack(spacing: 2) {
-                                                Text("\(event.durationMinutes)")
-                                                    .font(.system(size: 18, weight: .bold))
-                                                    .foregroundColor(Color.royalBlue)
-                                                Text("min")
-                                                    .font(.system(size: 10, weight: .medium))
-                                                    .foregroundColor(Color.royalBlue.opacity(0.8))
-                                            }
-                                            .padding(.horizontal, 10)
-                                            .padding(.vertical, 6)
-                                            .background(
-                                                RoundedRectangle(cornerRadius: 8)
-                                                    .fill(Color.royalBlue.opacity(0.1))
-                                            )
-                                            
-                                            // Chevron
-                                            Image(systemName: "chevron.right")
-                                                .foregroundColor(.gray)
-                                                .font(.system(size: 14))
                                         }
-                                        .padding(.horizontal, 18)
-                                        .padding(.vertical, 16)
+                                        
+                                        Spacer()
+                                        
+                                        // Duration badge
+                                        VStack(spacing: 2) {
+                                            Text("\(selectedDuration)")
+                                                .font(.system(size: 18, weight: .bold))
+                                                .foregroundColor(Color.royalBlue)
+                                            Text("min")
+                                                .font(.system(size: 10, weight: .medium))
+                                                .foregroundColor(Color.royalBlue.opacity(0.8))
+                                        }
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 6)
                                         .background(
-                                            RoundedRectangle(cornerRadius: 16)
-                                                .fill(Color.white)
-                                                .overlay(
-                                                    RoundedRectangle(cornerRadius: 16)
-                                                        .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                                                )
+                                            RoundedRectangle(cornerRadius: 8)
+                                                .fill(Color.royalBlue.opacity(0.1))
                                         )
-                                        .frame(maxWidth: .infinity)
+                                        
+                                        // Chevron
+                                        Image(systemName: "chevron.right")
+                                            .foregroundColor(.gray)
+                                            .font(.system(size: 14))
                                     }
-                                    .buttonStyle(PlainButtonStyle())
-                                    .padding(.horizontal, 25)
+                                    .padding(.horizontal, 18)
+                                    .padding(.vertical, 16)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 16)
+                                            .fill(Color.white)
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 16)
+                                                    .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                                            )
+                                    )
+                                    .frame(maxWidth: .infinity)
                                 }
+                                .buttonStyle(PlainButtonStyle())
+                                .padding(.horizontal, 25)
+                            }
+                            
                             VStack(alignment: .leading, spacing: 8) {
                                 Text("Sport Type")
                                     .font(.system(size: 16, weight: .medium, design: .default))
@@ -195,9 +203,9 @@ struct EditEventView: View {
                                         .frame(width: 20)
                                     
                                     TextField("Enter venue or address", text: $location)
-                                    .foregroundColor(.black)
-                                    .accentColor(.royalBlue)
-                                    .tint(.gray.opacity(0.9))
+                                        .foregroundColor(.black)
+                                        .accentColor(.royalBlue)
+                                        .tint(.gray.opacity(0.9))
                                 }
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 12)
@@ -217,7 +225,15 @@ struct EditEventView: View {
                                     .font(.system(size: 16, weight: .medium, design: .default))
                                     .foregroundColor(.black)
                                 
-                                Text("Intermediate (\(Int(skillLevel)))")
+                                let skillText = switch Int(skillLevel) {
+                                case 1...3: "Beginner (\(Int(skillLevel)))"
+                                case 4...6: "Intermediate (\(Int(skillLevel)))"
+                                case 7...8: "Advanced (\(Int(skillLevel)))"
+                                case 9...10: "Expert (\(Int(skillLevel)))"
+                                default: "Intermediate (\(Int(skillLevel)))"
+                                }
+                                
+                                Text(skillText)
                                     .font(.system(size: 16, weight: .bold, design: .default))
                                     .foregroundColor(.royalBlue)
                                 
@@ -244,14 +260,15 @@ struct EditEventView: View {
                                             .background(Color.royalBlue.opacity(0.1))
                                             .clipShape(Circle())
                                     }
+                                    .disabled(playersNeeded <= 1)
                                     
                                     Spacer()
                                     
                                     if isEditingPlayers {
                                         TextField("", text: $tempPlayersNeeded)
-                                    .foregroundColor(.black)
-                                    .accentColor(.royalBlue)
-                                    .tint(.gray.opacity(0.9))
+                                            .foregroundColor(.black)
+                                            .accentColor(.royalBlue)
+                                            .tint(.gray.opacity(0.9))
                                             .font(.system(size: 32, weight: .bold, design: .default))
                                             .foregroundColor(.black)
                                             .multilineTextAlignment(.center)
@@ -319,22 +336,11 @@ struct EditEventView: View {
                                 title: isEventSaved ? "Changes Saved!" : "Save Changes",
                                 style: isEventSaved ? .success : .primary
                             ) {
-                                if !isEventSaved {
-                                    // Show success message
-                                    showSuccessMessage = true
-                                    isEventSaved = true
-                                    
-                                    // Hide success message after 2 seconds
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                                        showSuccessMessage = false
-                                    }
-                                    
-                                    // Dismiss after 3 seconds
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                                        dismiss()
-                                    }
+                                Task {
+                                    await updateEvent()
                                 }
                             }
+                            .disabled(isLoading)
                             .padding(.horizontal, 20)
                         }
                         
@@ -360,7 +366,7 @@ struct EditEventView: View {
                         .padding()
                         .background(Color.white)
                         .cornerRadius(12)
-
+                        .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
                         .padding(.horizontal, 40)
                         .padding(.bottom, 100)
                         
@@ -369,15 +375,121 @@ struct EditEventView: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                     .animation(.spring(response: 0.6, dampingFraction: 0.8), value: showSuccessMessage)
                 }
+                
+                // Loading overlay
+                if isLoading {
+                    Color.black.opacity(0.3)
+                        .ignoresSafeArea()
+                    
+                    VStack(spacing: 20) {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle())
+                            .scaleEffect(1.5)
+                        
+                        Text("Updating event...")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(.black)
+                    }
+                    .padding()
+                    .background(Color.white)
+                    .cornerRadius(12)
+                    .shadow(radius: 10)
+                }
             }
             .navigationBarHidden(true)
             .sheet(isPresented: $showDateSheet) {
-                // Bind to temporary states reflecting current event values
-                DateTimeDurationSheet(selectedDate: Binding(get: { event.dateTime }, set: { _ in }), selectedDuration: Binding(get: { event.durationMinutes }, set: { _ in }))
+                DateTimeDurationSheet(selectedDate: $selectedDate, selectedDuration: $selectedDuration)
                     .presentationDetents([.height(320)])
+            }
+            .alert("Event Update", isPresented: $showAlert) {
+                Button("OK") {
+                    if alertMessage.contains("success") {
+                        dismiss()
+                    }
+                }
+            } message: {
+                Text(alertMessage)
             }
         }
     }
+    
+    // MARK: - Update Event Function
+    private func updateEvent() async {
+        print("EditEventView: Starting event update...")
+        
+        // Validate required fields
+        guard !sportType.isEmpty else {
+            alertMessage = "Please select a sport type"
+            showAlert = true
+            return
+        }
+        
+        guard !location.isEmpty else {
+            alertMessage = "Please enter a location"
+            showAlert = true
+            return
+        }
+        
+        guard playersNeeded >= event.currentPlayers else {
+            alertMessage = "Players needed cannot be less than current players (\(event.currentPlayers))"
+            showAlert = true
+            return
+        }
+        
+        await MainActor.run {
+            isLoading = true
+        }
+        
+        let updateRequest = UpdateEventRequest(
+            title: event.title, // Keep original title for now since it's not editable in this view
+            description: additionalNotes.isEmpty ? nil : additionalNotes,
+            sportType: sportType,
+            location: location,
+            latitude: event.latitude,
+            longitude: event.longitude,
+            dateTime: selectedDate,
+            durationMinutes: selectedDuration,
+            maxPlayers: playersNeeded,
+            skillLevel: Int(skillLevel)
+        )
+        
+        print("EditEventView: Calling authManager.updateEvent with:")
+        print("- ID: \(event.id)")
+        print("- Sport: \(sportType)")
+        print("- Location: \(location)")
+        print("- Date: \(selectedDate)")
+        print("- Duration: \(selectedDuration)")
+        print("- Max Players: \(playersNeeded)")
+        print("- Skill Level: \(Int(skillLevel))")
+        
+        let success = await authManager.updateEvent(id: event.id, updateRequest)
+        
+        await MainActor.run {
+            isLoading = false
+            
+            if success {
+                print("EditEventView: Event updated successfully")
+                alertMessage = "Event updated successfully! 🎉"
+                isEventSaved = true
+                showSuccessMessage = true
+                
+                // Hide success message after 2 seconds
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                    showSuccessMessage = false
+                }
+                
+                // Dismiss after 3 seconds
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                    dismiss()
+                }
+            } else {
+                print("EditEventView: Event update failed: \(authManager.errorMessage ?? "Unknown error")")
+                alertMessage = authManager.errorMessage ?? "Failed to update event"
+                showAlert = true
+            }
+        }
+    }
+    
 }
 
 #Preview {
@@ -402,4 +514,4 @@ struct EditEventView: View {
         )
     )
     .environmentObject(AuthManager())
-} 
+}

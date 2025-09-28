@@ -214,7 +214,7 @@ struct HostView: View {
             }
         }
 }
-}
+
 struct HostedEventCard: View {
     let title: String
     let date: String

@@ -121,18 +121,24 @@ struct ExploreView: View {
                             // Notification bell
                             
                             // Refresh button
-                            // Refresh button
-                            Button(action: {
                                 Task {
+                                    isRefreshing = true
                                     await authManager.refreshAllEventLists()
+                                    isRefreshing = false
                                 }
                             }) {
-                                Image(systemName: "arrow.clockwise")
-                                    .font(.title2)
-                                    .foregroundColor(.royalBlue)
-                            }
-                            
-                            Button(action: {                                // Handle notifications
+                                if isRefreshing {
+                                    ProgressView()
+                                        .scaleEffect(0.8)
+                                        .foregroundColor(.royalBlue)
+                                } else {
+                                    Image(systemName: "arrow.clockwise")
+                                        .font(.title2)
+                                        .foregroundColor(.royalBlue)
+                                }
+                            }                            }
+                            Button(action: {
+                                // Handle notifications
                             }) {
                                 Image(systemName: "bell")
                                     .font(.title2)
@@ -497,7 +503,7 @@ struct ExploreView: View {
             await authManager.refreshAllEventLists()
         }
     
-    }    // MARK: - Helper Functions
+    // MARK: - Helper Functions
     
     private func performSearch() async {
         isSearching = true
@@ -891,6 +897,7 @@ struct ChangeLocationView: View {
         .ignoresSafeArea()
     }
 }
+
 #Preview {
     ExploreView(selectedTab: .constant(0))
         .environmentObject(AuthManager())
